@@ -156,7 +156,13 @@ def map_topics(course_id: uuid.UUID = typer.Option(..., "--course", "-c")) -> No
     async def _run() -> None:
         from recitai.retrieval.topic_map import build_topic_map
 
-        created = await build_topic_map(course_id)
+        # A client is supplied so the §10 task 2 clustering fallback can run if the
+        # document turns out to have no usable headings.
+        client = OllamaClient()
+        try:
+            created = await build_topic_map(course_id, client=client)
+        finally:
+            await client.aclose()
         typer.echo(f"{len(created)} topics mapped")
 
     asyncio.run(_run())

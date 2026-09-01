@@ -237,3 +237,93 @@ async def test_vector_payloads_carry_topic_id_after_mapping() -> None:
         pytest.skip("nothing indexed")
     missing = [h for h in hits if not h.get("topic_id")]
     assert not missing, f"{len(missing)}/{len(hits)} indexed chunks have no topic_id"
+
+
+# --------------------------------------------------- clustering fallback (I-024) ----
+
+
+@pytest.mark.asyncio
+async def test_clustering_groups_untitled_chunks_and_names_them() -> None:
+    """§10 task 2. This corpus has 227 titled slides out of 227, so the fallback never
+    runs on it — a branch that has never executed is not an implementation, so it is
+    exercised here against a synthetic document instead."""
+    from recitai.db.models import Chunk
+    from recitai.retrieval.topic_map import cluster_untitled_chunks
+
+    class FakeLLM:
+        """Two well-separated themes, so the clustering has something real to find."""
+
+        async def complete(self, prompt: str, **kwargs: object) -> str:
+            return "Fragmentation Design" if "fragment" in prompt.lower() else "Query Processing"
+
+        async def stream(self, prompt: str, **kwargs: object):  # type: ignore[no-untyped-def]
+            yield ""
+
+        async def embed(self, texts: list[str]) -> list[list[float]]:
+            vectors = []
+            for text in texts:
+                base = [1.0, 0.0] if "fragment" in text.lower() else [0.0, 1.0]
+                vectors.append(base + [0.0] * 766)
+            return vectors
+
+    chunks = [
+        Chunk(
+            id=uuid.uuid4(),
+            document_id=uuid.uuid4(),
+            course_id=uuid.uuid4(),
+            text=text,
+            page_start=i + 1,
+            page_end=i + 1,
+            section_path=[],
+            token_count=200,
+        )
+        for i, text in enumerate(
+            [
+                "horizontal fragment predicates",
+                "vertical fragment attributes",
+                "derived fragment links",
+                "query processing cost",
+                "query optimisation joins",
+                "query execution plans",
+            ]
+        )
+    ]
+
+    groups = await cluster_untitled_chunks(chunks, FakeLLM(), "Distributed Databases")
+
+    assert len(groups) == 2
+    # Every chunk must land in exactly one group. HDBSCAN would label sparse chunks as
+    # outliers and drop them, leaving chunks in no topic — invisible to the sampler, which
+    # is the coverage hole I3 exists to prevent.
+    assigned = [cid for _name, ids in groups for cid in ids]
+    assert len(assigned) == len(chunks)
+    assert len(set(assigned)) == len(chunks)
+    assert all(name.strip() for name, _ in groups), "every cluster must get a name"
+
+
+@pytest.mark.asyncio
+async def test_cluster_names_are_stripped_of_model_decoration() -> None:
+    from recitai.db.models import Chunk
+    from recitai.retrieval.topic_map import name_cluster
+
+    class QuotingLLM:
+        async def complete(self, prompt: str, **kwargs: object) -> str:
+            return '  "Fragmentation Design."  '
+
+        async def stream(self, prompt: str, **kwargs: object):  # type: ignore[no-untyped-def]
+            yield ""
+
+        async def embed(self, texts: list[str]) -> list[list[float]]:
+            return [[0.0] * 768 for _ in texts]
+
+    chunk = Chunk(
+        id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        course_id=uuid.uuid4(),
+        text="body",
+        page_start=1,
+        page_end=1,
+        section_path=[],
+        token_count=100,
+    )
+    assert await name_cluster([chunk], QuotingLLM(), "DDB") == "Fragmentation Design"
