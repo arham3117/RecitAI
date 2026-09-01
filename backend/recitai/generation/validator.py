@@ -42,10 +42,21 @@ EMPTY_FIELD = "EMPTY_FIELD"
 #: (I-028). Telling the model not to do it did not work — the rate rose from 5% to 17% of
 #: stems. It is trivially detectable, so it belongs in the deterministic tier.
 INVENTED_RANKING = "INVENTED_RANKING"
+#: Not in §5.1 either. Both models tested get table arithmetic wrong while stating the
+#: right operands — llama3.1:8b answered 8 and qwen2.5:14b answered 48 for a product with
+#: 32 rows. No judge catches it: the claim is grounded, unique and plausible. A number the
+#: passage never states is one the model computed, and computed numbers are unreliable
+#: (I-029).
+NUMERIC_UNSUPPORTED = "NUMERIC_UNSUPPORTED"
 
 #: §5.1's negation check. Word-boundary matched: a naive substring scan fires on
 #: "cannot", "note", "notation" and "notably", which technical prose is full of (I-009).
 _NEGATION_WORDS = re.compile(r"\b(not|except|least)\b", re.I)
+
+#: Digits as a whole token. Deliberately `\b`-anchored: the "8" inside "E8" and the "5"
+#: inside "55000" are not the number 8 or 5, and treating them as present is what made an
+#: earlier version of this check look useless.
+_STANDALONE_NUMBER = re.compile(r"\b\d+(?:\.\d+)?\b")
 
 #: Superlatives that impose an ordering. Harmless when the passage itself ranks things.
 _RANKING_WORDS = re.compile(r"\b(primary|primarily|main|chief|most important|foremost)\b", re.I)
@@ -168,6 +179,26 @@ def check_invented_ranking(question: GeneratedQuestion, chunk_text: str) -> list
     return [INVENTED_RANKING]
 
 
+def check_unsupported_number(question: GeneratedQuestion, chunk_text: str) -> list[str]:
+    """Reject a correct answer containing a number the passage never states (I-029).
+
+    A number not in the passage is one the model derived, and both models measured on this
+    corpus derive them wrongly — while narrating the correct method. The validator cannot
+    check arithmetic, so it refuses the question instead: §6.1 already says to generate
+    nothing rather than something unsupported.
+
+    Numbers that *are* stated pass untouched, so "what is the budget of P1" remains
+    askable.
+    """
+    answer_numbers = _STANDALONE_NUMBER.findall(question.correct.text)
+    if not answer_numbers:
+        return []
+    in_passage = set(_STANDALONE_NUMBER.findall(chunk_text))
+    if any(n not in in_passage for n in answer_numbers):
+        return [NUMERIC_UNSUPPORTED]
+    return []
+
+
 async def run_deterministic(
     question: GeneratedQuestion, client: LLMClient | None = None, chunk_text: str = ""
 ) -> list[str]:
@@ -179,6 +210,7 @@ async def run_deterministic(
     failures += check_negation(question)
     failures += check_leakage(question)
     failures += check_invented_ranking(question, chunk_text)
+    failures += check_unsupported_number(question, chunk_text)
     if client is not None and not failures:
         # Only worth the embedding calls if the free checks already passed.
         failures += await check_option_overlap(question, client)

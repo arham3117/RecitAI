@@ -14,12 +14,14 @@ from recitai.generation.validator import (
     LEAKAGE,
     LENGTH_BIAS,
     NEGATION,
+    NUMERIC_UNSUPPORTED,
     check_banned_phrases,
     check_empty,
     check_invented_ranking,
     check_leakage,
     check_length_bias,
     check_negation,
+    check_unsupported_number,
 )
 
 
@@ -176,3 +178,40 @@ def test_ranking_variants_are_caught(stem: str) -> None:
     assert check_invented_ranking(_q(stem=stem), "a passage without ranking words") == [
         INVENTED_RANKING
     ]
+
+
+# ------------------------------------------------- unsupported numbers (I-029) ----
+
+
+def test_a_number_the_passage_never_states_is_rejected() -> None:
+    """The measured failure: llama3.1:8b answered "8 rows" and qwen2.5:14b answered "48"
+    for a Cartesian product with 32. Both narrated the correct method and then computed
+    wrongly, and no judge catches it — the claim is grounded, unique and plausible."""
+    q = _q(correct="A table with 8 rows and 5 columns")
+    passage = "EMP | ENO | ENAME\nE1 | J. Doe\nE8 | J. Jones\nSALARY 55000"
+    assert check_unsupported_number(q, passage) == [NUMERIC_UNSUPPORTED]
+
+
+def test_digits_inside_a_larger_token_do_not_count_as_present() -> None:
+    """The check is word-boundary anchored on purpose. The "8" in "E8" and the "5" in
+    "55000" are not the numbers 8 and 5 — reading them as present is what made an earlier
+    version of this check appear useless, and led me to dismiss it."""
+    passage = "E8 pays 55000"
+    assert check_unsupported_number(_q(correct="8"), passage) == [NUMERIC_UNSUPPORTED]
+    assert check_unsupported_number(_q(correct="5"), passage) == [NUMERIC_UNSUPPORTED]
+
+
+def test_a_number_stated_in_the_passage_is_allowed() -> None:
+    """Recall questions over stated figures must stay askable."""
+    passage = "PROJ | P1 | Instrumentation | 150000 | Montreal"
+    assert check_unsupported_number(_q(correct="150000"), passage) == []
+
+
+def test_answers_without_numbers_are_untouched() -> None:
+    assert check_unsupported_number(_q(correct="Completeness"), "any passage") == []
+
+
+def test_complexity_notation_passes_when_the_passage_shows_it() -> None:
+    """O(2^m) contains a 2; the passage states it, so the question is fair."""
+    passage = "The cost of m-way partitioning is O(2^m)."
+    assert check_unsupported_number(_q(correct="O(2^m)"), passage) == []
