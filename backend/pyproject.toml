@@ -55,16 +55,23 @@ packages = ["recitai"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# Alembic's env.py and versions/ are generated; reformatting them creates noisy diffs
+# on every autogenerate and buys nothing.
+extend-exclude = ["alembic"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+# Typer's whole interface is function calls in argument defaults.
+"recitai/cli.py" = ["B008"]
 
 [tool.black]
 line-length = 100
 target-version = ["py312"]
 # constants.py is a verbatim transcription of spec §4.1 and is diff-checked against it by
 # tests/test_constants_verbatim.py. Formatting it would break that guarantee.
-force-exclude = "constants\\.py$"
+force-exclude = "(constants\\.py|alembic/)"
 
 [tool.mypy]
 python_version = "3.12"

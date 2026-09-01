@@ -1,5 +1,5 @@
 # RecitAI — see plan/RECITAI_BUILD_SPEC.md §0.3
-.PHONY: help dev down lint format test smoke services ingest eval install
+.PHONY: help dev down lint format test smoke services ingest migrate eval install
 
 BACKEND := backend
 UV      := uv run --project $(BACKEND)
@@ -42,8 +42,11 @@ services:  ## verify postgres + qdrant are reachable and are the right instances
 smoke:  ## Phase 0 gate: structured output + embedding against the real models
 	cd $(BACKEND) && uv run python ../scripts/smoke_test.py
 
-ingest:  ## ingest a file: make ingest F=materials/1-Introduction.pptx
-	@echo "not implemented until Phase 1 (spec §9)"; exit 1
+ingest:  ## ingest a file or directory: make ingest F=materials C="Distributed DBs"
+	cd $(BACKEND) && uv run recitai ingest ../$(F) --course "$(C)"
+
+migrate:  ## apply database migrations
+	cd $(BACKEND) && uv run alembic upgrade head
 
 eval:  ## metrics report
 	@echo "not implemented until Phase 7 (spec §15)"; exit 1
