@@ -29,6 +29,128 @@ _PAGE_NUMBER = re.compile(
 _HYPHEN_BREAK = re.compile(r"(\w+)-\s*\n\s*(\w+)")
 _MULTI_BLANK = re.compile(r"\n{3,}")
 
+#: PowerPoint's Symbol font encodes characters in the Unicode Private Use Area at
+#: U+F0xx, where xx is the Adobe Symbol code point. Extracted verbatim they are
+#: meaningless outside that font and render as blank boxes — and worse, they carry the
+#: mathematics: `{t | t ∈ R and t ∉ S}` extracts as `{t | t  R and t  S}`, which does not
+#: say what the slide says. Measured on this corpus: 63% of chunks affected, `∈` alone
+#: appearing 36 times. See plan/ISSUES.md I-031.
+_SYMBOL_FONT_PUA = {
+    # Greek lowercase (Adobe Symbol a–z)
+    "a": "α",
+    "b": "β",
+    "c": "χ",
+    "d": "δ",
+    "e": "ε",
+    "f": "φ",
+    "g": "γ",
+    "h": "η",
+    "i": "ι",
+    "j": "ϕ",
+    "k": "κ",
+    "l": "λ",
+    "m": "μ",
+    "n": "ν",
+    "o": "ο",
+    "p": "π",
+    "q": "θ",
+    "r": "ρ",
+    "s": "σ",
+    "t": "τ",
+    "u": "υ",
+    "v": "ϖ",
+    "w": "ω",
+    "x": "ξ",
+    "y": "ψ",
+    "z": "ζ",
+    # Greek uppercase
+    "A": "Α",
+    "B": "Β",
+    "C": "Χ",
+    "D": "Δ",
+    "E": "Ε",
+    "F": "Φ",
+    "G": "Γ",
+    "H": "Η",
+    "I": "Ι",
+    "J": "ϑ",
+    "K": "Κ",
+    "L": "Λ",
+    "M": "Μ",
+    "N": "Ν",
+    "O": "Ο",
+    "P": "Π",
+    "Q": "Θ",
+    "R": "Ρ",
+    "S": "Σ",
+    "T": "Τ",
+    "U": "Υ",
+    "V": "ς",
+    "W": "Ω",
+    "X": "Ξ",
+    "Y": "Ψ",
+    "Z": "Ζ",
+}
+#: Non-letter Symbol code points, by their Adobe Symbol byte.
+_SYMBOL_FONT_MATH = {
+    0x22: "∀",
+    0x24: "∃",
+    0x27: "∋",
+    0x2D: "−",
+    0x40: "≅",
+    0x5C: "∴",
+    0xA3: "≤",
+    0xA5: "∞",
+    0xAC: "←",
+    0xAE: "→",
+    0xB0: "°",
+    0xB1: "±",
+    0xB3: "≥",
+    0xB4: "×",
+    0xB8: "÷",
+    0xB9: "≠",
+    0xBB: "≈",
+    0xC7: "∩",
+    0xC8: "∪",
+    0xCC: "⊄",
+    0xCD: "⊆",
+    0xCE: "∈",
+    0xCF: "∉",
+    0xD0: "∠",
+    0xD6: "√",
+    0xD9: "∧",
+    0xDA: "∨",
+    0xDB: "⇔",
+    0xDC: "⇐",
+    0xDD: "⇒",
+    0xDE: "⇑",
+    0xE0: "◊",
+    0xE1: "⟨",
+    0xE5: "Σ",
+    0xF1: "⟩",
+}
+
+
+def restore_symbol_font(text: str) -> str:
+    """Map Symbol-font Private Use Area code points back to real Unicode.
+
+    A character left in the PUA is not merely ugly: it silently removes an operator from a
+    formula, so the passage no longer states what the slide states — and a question
+    generated from it is grounded in text that lost its meaning.
+    """
+    if not any("\uf020" <= ch <= "\uf0ff" for ch in text):
+        return text
+    out: list[str] = []
+    for ch in text:
+        if "\uf020" <= ch <= "\uf0ff":
+            code = ord(ch) - 0xF000
+            letter = chr(code)
+            out.append(_SYMBOL_FONT_PUA.get(letter) or _SYMBOL_FONT_MATH.get(code, ""))
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
 #: Numbered running footers: "Page 12", "Slide 3 of 40", "Ch. 2 — 15". Matched by shape,
 #: and only on short lines, so a sentence that happens to contain a number survives.
 _PAGE_MARKER = re.compile(
@@ -87,7 +209,13 @@ def clean_page(page: ParsedPage, furniture: set[str]) -> ParsedPage:
 
     text = _MULTI_BLANK.sub("\n\n", repair_hyphenation("\n".join(kept))).strip()
     notes = _MULTI_BLANK.sub("\n\n", repair_hyphenation(page.notes)).strip()
-    return ParsedPage(number=page.number, heading=page.heading, text=text, notes=notes)
+    heading = restore_symbol_font(page.heading) if page.heading else page.heading
+    return ParsedPage(
+        number=page.number,
+        heading=heading,
+        text=restore_symbol_font(text),
+        notes=restore_symbol_font(notes),
+    )
 
 
 def clean(document: ParsedDocument) -> ParsedDocument:

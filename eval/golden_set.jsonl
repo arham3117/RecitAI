@@ -1,6 +1,6 @@
 {"id": 1, "query": "What is a covert channel and how can it leak unauthorized data?", "source_section": ["5-Semantic", "Covert Channels"]}
 {"id": 2, "query": "How many deletions convert the string Responsibility into Resp?", "source_section": ["4-Data Integration", "Edit Distance Example"]}
-{"id": 3, "query": "How is the attribute affinity measure between two attributes computed?", "source_section": ["3-Distribution Design", "VF – Affinity Measure aff(Ai,Aj)"]}
+{"id": 3, "query": "How is the attribute affinity measure between two attributes computed?", "source_section": ["3-Distribution Design", "VF – Calculation of aff(Ai, Aj)"]}
 {"id": 4, "query": "When is a set of simple predicates said to be complete?", "source_section": ["3-Distribution Design", "Completeness of Simple Predicates"]}
 {"id": 5, "query": "What is a semijoin and how is it derived from a join?", "source_section": ["2-Background", "Semijoin"]}
 {"id": 6, "query": "Why are employee name and title values repeated for every project?", "source_section": ["2-Background", "Repetition Anomaly"]}
@@ -8,3 +8,28 @@
 {"id": 8, "query": "What is a materialized view and why is it stored rather than derived?", "source_section": ["5-Semantic", "Materialized View"]}
 {"id": 9, "query": "What constraints does the allocation model minimise total cost subject to?", "source_section": ["3-Distribution Design", "Allocation Model"]}
 {"id": 10, "query": "How are local conceptual schemas integrated into a global conceptual schema?", "source_section": ["4-Data Integration", "Problem Definition"]}
+{"id": 11, "query": "Why can a new project not be stored until an employee is assigned to it?", "source_section": ["2-Background", "Insertion Anomaly"]}
+{"id": 12, "query": "What does the selection operator produce from a relation?", "source_section": ["2-Background", "Selection"]}
+{"id": 13, "query": "How is a relation defined over a set of domains?", "source_section": ["2-Background", "Relational Model"]}
+{"id": 14, "query": "What is the degree and cardinality of the Cartesian product of two relations?", "source_section": ["2-Background", "Cartesian (Cross) Product"]}
+{"id": 15, "query": "How are networks classified by geographic distribution?", "source_section": ["2-Background", "Types of Networks"]}
+{"id": 16, "query": "What does normalization improve about an individual relation?", "source_section": ["2-Background", "What to do?"]}
+{"id": 17, "query": "What is the general form of a theta join?", "source_section": ["2-Background", "θ-Join"]}
+{"id": 18, "query": "What does the Cartesian product of EMP and PAY produce?", "source_section": ["2-Background", "Cartesian Product Example"]}
+{"id": 19, "query": "How did early file systems duplicate data descriptions across programs?", "source_section": ["1-Introduction", "File Systems"]}
+{"id": 20, "query": "What operating system support does a distributed database need?", "source_section": ["1-Introduction", "Related Issues"]}
+{"id": 21, "query": "What is the AA matrix and how does the CA matrix relate to it?", "source_section": ["3-Distribution Design", "BEA – Example"]}
+{"id": 22, "query": "What does referential integrity require of derived horizontal fragments?", "source_section": ["3-Distribution Design", "DHF – Correctness"]}
+{"id": 23, "query": "What decisions does distribution design make about placement of data and programs?", "source_section": ["3-Distribution Design", "Design Problem"]}
+{"id": 24, "query": "How does vertical fragmentation split a relation into PROJ1 and PROJ2?", "source_section": ["3-Distribution Design", "Fragmentation Alternatives – Vertical"]}
+{"id": 25, "query": "How is the PROJ relation fragmented horizontally in the worked example?", "source_section": ["3-Distribution Design", "PHF – Example"]}
+{"id": 26, "query": "What database information does primary horizontal fragmentation require?", "source_section": ["3-Distribution Design", "PHF – Information Requirements"]}
+{"id": 27, "query": "Which function does the PHORIZONTAL algorithm use to perform fragmentation?", "source_section": ["3-Distribution Design", "PHORIZONTAL Algorithm"]}
+{"id": 28, "query": "What two problems does the vertical fragmentation algorithm have to solve?", "source_section": ["3-Distribution Design", "VF – Algorithm"]}
+{"id": 29, "query": "How does linguistic schema matching use element names to find similarities?", "source_section": ["4-Data Integration", "Linguistic Schema Matching"]}
+{"id": 30, "query": "How does the mapping creation algorithm divide a set into subsets?", "source_section": ["4-Data Integration", "Mapping Creation Algorithm"]}
+{"id": 31, "query": "What are general constraints in the constraint specification language?", "source_section": ["5-Semantic", "Constraint Specification Language"]}
+{"id": 32, "query": "How are differential relations used to check an assertion after an update?", "source_section": ["5-Semantic", "Differential Relations"]}
+{"id": 33, "query": "How can a malicious user read data through an authorized user under DAC?", "source_section": ["5-Semantic", "Problem with DAC"]}
+{"id": 34, "query": "What does semantic data control involve and what is its objective?", "source_section": ["5-Semantic", "Semantic Data Control"]}
+{"id": 35, "query": "What determines which incremental view maintenance technique applies?", "source_section": ["5-Semantic", "Techniques for Incremental View Maintenance"]}

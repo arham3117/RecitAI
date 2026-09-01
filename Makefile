@@ -51,8 +51,8 @@ ingest:  ## ingest a file or directory: make ingest F=materials C="Distributed D
 migrate:  ## apply database migrations
 	cd $(BACKEND) && uv run alembic upgrade head
 
-eval:  ## metrics report
-	@echo "full harness lands in Phase 7 (spec §15)"; exit 1
+eval:  ## metrics report (spec §15)
+	cd $(BACKEND) && uv run python ../eval/run_eval.py
 
 compare:  ## compare generation runs: make compare LOGS="a.txt b.txt"
 	cd $(BACKEND) && uv run python ../eval/compare_runs.py $(LOGS)

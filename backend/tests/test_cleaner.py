@@ -1,6 +1,11 @@
 """Cleaner tests — spec §9 task 3."""
 
-from recitai.ingestion.cleaner import clean_page, find_repeated_lines, repair_hyphenation
+from recitai.ingestion.cleaner import (
+    clean_page,
+    find_repeated_lines,
+    repair_hyphenation,
+    restore_symbol_font,
+)
 from recitai.ingestion.parser import ParsedPage
 
 
@@ -52,3 +57,28 @@ def test_standalone_page_numbers_are_dropped() -> None:
     cleaned = clean_page(page, set())
     assert "42" not in cleaned.text.split()
     assert "Real sentence." in cleaned.text
+
+
+def test_symbol_font_private_use_characters_are_restored() -> None:
+    """PowerPoint's Symbol font encodes characters at U+F0xx. Left there they render as
+    blank boxes and, worse, silently remove operators from formulae — the set-difference
+    definition loses both membership signs, so the passage no longer says what the slide
+    says. Measured at 63% of chunks on this corpus (I-031)."""
+    assert (
+        restore_symbol_font("R \u2013 S = {t \uf0ce R and t \uf0cf S}")
+        == "R \u2013 S = {t \u2208 R and t \u2209 S}"
+    )
+    assert restore_symbol_font("\uf071-Join") == "\u03b8-Join"
+    assert restore_symbol_font("\uf073 selection") == "\u03c3 selection"
+    assert restore_symbol_font("\uf0a3 threshold") == "\u2264 threshold"
+
+
+def test_ordinary_text_is_untouched_by_symbol_restoration() -> None:
+    for text in ("ordinary text", "", "R - S = {t in R}", "caf\u00e9 na\u00efve \u2014 dash"):
+        assert restore_symbol_font(text) == text
+
+
+def test_unmapped_private_use_characters_are_dropped_not_kept() -> None:
+    """An unmapped PUA code point is meaningless outside its font; keeping it puts a blank
+    box in front of the student."""
+    assert restore_symbol_font("a\uf0ffb") == "ab"
