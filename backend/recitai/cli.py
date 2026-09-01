@@ -29,6 +29,11 @@ def ingest(
         store = VectorStore()
         try:
             results = await run_ingest(path, course, client, store, force=force)
+        except FileNotFoundError as exc:
+            # A mistyped path or a directory of unsupported files is ordinary user error;
+            # it deserves a message, not a stack trace.
+            typer.secho(str(exc), fg=typer.colors.RED, err=True)
+            return 1
         finally:
             await client.aclose()
             await store.aclose()

@@ -50,8 +50,15 @@ class Course(Base):
     code: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = _now()
 
-    documents: Mapped[list["Document"]] = relationship(back_populates="course")
-    topics: Mapped[list["Topic"]] = relationship(back_populates="course")
+    # passive_deletes defers to the database's ON DELETE CASCADE. Without it SQLAlchemy
+    # first issues UPDATE ... SET course_id = NULL, which violates NOT NULL and makes a
+    # course undeletable.
+    documents: Mapped[list["Document"]] = relationship(
+        back_populates="course", cascade="all, delete-orphan", passive_deletes=True
+    )
+    topics: Mapped[list["Topic"]] = relationship(
+        back_populates="course", cascade="all, delete-orphan", passive_deletes=True
+    )
 
 
 class Document(Base):
@@ -69,7 +76,9 @@ class Document(Base):
     created_at: Mapped[datetime] = _now()
 
     course: Mapped["Course"] = relationship(back_populates="documents")
-    chunks: Mapped[list["Chunk"]] = relationship(back_populates="document")
+    chunks: Mapped[list["Chunk"]] = relationship(
+        back_populates="document", cascade="all, delete-orphan", passive_deletes=True
+    )
 
     __table_args__ = (
         CheckConstraint(
