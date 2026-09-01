@@ -1,5 +1,5 @@
 # RecitAI — see plan/RECITAI_BUILD_SPEC.md §0.3
-.PHONY: help dev down lint format test smoke ingest eval install
+.PHONY: help dev down lint format test smoke services ingest eval install
 
 BACKEND := backend
 UV      := uv run --project $(BACKEND)
@@ -15,6 +15,7 @@ dev:  ## start qdrant + postgres (Ollama runs natively — D-002)
 	@echo "waiting for healthchecks..."
 	@until [ "$$(docker compose ps --format '{{.Health}}' | grep -c healthy)" = "2" ]; do sleep 2; done
 	@docker compose ps
+	@cd $(BACKEND) && uv run python ../scripts/check_services.py
 
 down:  ## stop services
 	docker compose down
@@ -30,6 +31,9 @@ format:  ## apply ruff --fix and black
 
 test:  ## pytest
 	cd $(BACKEND) && uv run pytest -q
+
+services:  ## verify postgres + qdrant are reachable and are the right instances
+	cd $(BACKEND) && uv run python ../scripts/check_services.py
 
 smoke:  ## Phase 0 gate: structured output + embedding against the real models
 	cd $(BACKEND) && uv run python ../scripts/smoke_test.py

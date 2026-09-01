@@ -1035,7 +1035,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
     { name = "python-pptx", specifier = ">=1.0" },
-    { name = "qdrant-client", specifier = ">=1.12" },
+    { name = "qdrant-client", specifier = ">=1.19,<1.20" },
     { name = "rapidfuzz", specifier = ">=3.10" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },

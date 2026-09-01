@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     qdrant_collection: str = "recitai_chunks"
 
     # D-001 — Postgres from Phase 0, not SQLite.
-    database_url: str = "postgresql+asyncpg://recitai:recitai@localhost:5432/recitai"
+    database_url: str = "postgresql+asyncpg://recitai:recitai@localhost:5433/recitai"
 
     gen_model: str = constants.GEN_MODEL
     embedding_model: str = constants.EMBEDDING_MODEL

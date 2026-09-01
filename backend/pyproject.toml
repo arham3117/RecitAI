@@ -16,7 +16,7 @@ dependencies = [
     "asyncpg>=0.30",        # D-001: Postgres from the start
     "greenlet>=3.1",        # required by SQLAlchemy's asyncio bridge
     # Vector store
-    "qdrant-client>=1.12",
+    "qdrant-client>=1.19,<1.20",  # must track the server image in docker-compose.yml
     # Ingestion
     "pymupdf>=1.24",
     "pymupdf4llm>=0.0.17",

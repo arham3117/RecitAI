@@ -9,7 +9,7 @@
 
 services:
   qdrant:
-    image: qdrant/qdrant:v1.12.4
+    image: qdrant/qdrant:v1.19.0
     ports:
       - "6333:6333"   # REST
       - "6334:6334"   # gRPC
@@ -30,11 +30,15 @@ services:
       POSTGRES_PASSWORD: recitai
       POSTGRES_DB: recitai
     ports:
-      - "5432:5432"
+      # 5433 on the host: Homebrew postgresql@14 owns 5432 and shadows this container on
+      # localhost. See plan/ISSUES.md I-020. Container-internal port is unchanged.
+      - "5433:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U recitai -d recitai"]
+      # pg_isready does NOT authenticate — it reported healthy while every real
+      # connection failed. Run an actual authenticated query instead (I-020).
+      test: ["CMD-SHELL", "psql -U recitai -d recitai -c 'SELECT 1' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
