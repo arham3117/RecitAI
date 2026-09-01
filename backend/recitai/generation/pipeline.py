@@ -12,11 +12,10 @@ import structlog
 from sqlalchemy import select
 
 from recitai.config import settings
-from recitai.constants import GEN_MODEL
 from recitai.db.models import Course, Flashcard, Question, Quiz
 from recitai.db.session import session_scope
 from recitai.generation.dedup import Deduplicator
-from recitai.generation.generator import generate_flashcards, generate_question
+from recitai.generation.generator import generate_flashcards, generate_question, model_name
 from recitai.generation.schemas import Difficulty, GeneratedQuestion, ValidatorReport
 from recitai.llm.base import LLMClient
 from recitai.retrieval.resolver import Scope
@@ -60,9 +59,9 @@ class GenerationRun:
         attempted = self.persisted + self.validator_rejections
         return self.persisted / attempted if attempted else 0.0
 
-    def as_meta(self, prompt_version: str) -> dict[str, object]:
+    def as_meta(self, prompt_version: str, model: str) -> dict[str, object]:
         return {
-            "model": GEN_MODEL,
+            "model": model,
             "question_prompt": settings.question_prompt,
             "judge_prompt": settings.judge_prompt,
             "prompt_version": prompt_version,
@@ -169,7 +168,7 @@ async def generate_quiz(
                 scope={"topic_ids": [str(t) for t in scope.topic_ids]},
                 question_count=len(accepted),
                 difficulty=difficulty,
-                generation_meta=run.as_meta(prompt_version),
+                generation_meta=run.as_meta(prompt_version, model_name(client)),
             )
             session.add(quiz)
             await session.flush()

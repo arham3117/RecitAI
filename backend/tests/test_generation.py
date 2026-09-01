@@ -367,3 +367,26 @@ def test_prompt_selection_is_configuration() -> None:
     assert settings.judge_prompt.startswith("validator_judge_v")
     load(settings.question_prompt)
     load(settings.judge_prompt)
+
+
+def test_reported_model_is_the_one_actually_used() -> None:
+    """§11 task 9's per-question log and §5.4's generation_meta both recorded
+    `constants.GEN_MODEL` — the spec's fixed value — rather than the model that produced
+    the output. A model A/B would have stored the wrong model against its own results, and
+    generation_meta is persisted, so the error outlives the run."""
+    from recitai import constants
+    from recitai.generation.generator import model_name
+    from recitai.llm.ollama import OllamaClient
+
+    swapped = OllamaClient(gen_model="qwen2.5:14b-instruct-q4_K_M")
+    assert model_name(swapped) == "qwen2.5:14b-instruct-q4_K_M"
+    assert model_name(swapped) != constants.GEN_MODEL
+
+    assert model_name(OllamaClient()) == constants.GEN_MODEL
+
+
+def test_generation_meta_records_the_model_it_was_given() -> None:
+    from recitai.generation.pipeline import GenerationRun
+
+    meta = GenerationRun(requested=10).as_meta("v1", "qwen2.5:14b-instruct-q4_K_M")
+    assert meta["model"] == "qwen2.5:14b-instruct-q4_K_M"

@@ -13,7 +13,7 @@ import structlog
 from pydantic import ValidationError
 
 from recitai.config import settings
-from recitai.constants import GEN_MODEL, GEN_TEMPERATURE, MAX_REGEN_ATTEMPTS
+from recitai.constants import GEN_TEMPERATURE, MAX_REGEN_ATTEMPTS
 from recitai.generation.prompts import load
 from recitai.generation.schemas import (
     Difficulty,
@@ -51,6 +51,16 @@ class GenerationOutcome:
     @property
     def ok(self) -> bool:
         return self.question is not None
+
+
+def model_name(client: LLMClient) -> str:
+    """The model that actually produced the output.
+
+    Not `constants.GEN_MODEL`: that is the spec's fixed §4.1 value, while the model in use
+    is env-overridable and may be an explicit constructor argument. Reporting the constant
+    made a model-swap run record itself under the wrong model.
+    """
+    return str(getattr(client, "gen_model", settings.gen_model))
 
 
 def _is_insufficient(raw: str) -> bool:
@@ -140,7 +150,7 @@ async def generate_question(
         attempts=outcome.attempts,
         duration_ms=outcome.duration_ms,
         prompt_version=outcome.prompt_version,
-        model=GEN_MODEL,
+        model=model_name(client),
         prompt_tokens=outcome.prompt_tokens,
         output_tokens=outcome.output_tokens,
         validator_verdict=(outcome.report.passed if outcome.report else None),
