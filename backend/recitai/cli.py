@@ -234,8 +234,19 @@ def generate(
     """Generate validated questions from sampled chunks (§11)."""
 
     async def _run() -> int:
+        # A run must state its own configuration. Verifying afterwards which prompt
+        # produced a set of questions meant reading generation_meta out of the database,
+        # and only for the most recent run — which is no help when comparing two.
+        from recitai.config import settings as _settings
+        from recitai.constants import GEN_MODEL
         from recitai.generation.pipeline import generate_quiz
         from recitai.retrieval.resolver import Scope
+
+        typer.secho(
+            f"model={GEN_MODEL}  question_prompt={_settings.question_prompt}  "
+            f"judge_prompt={_settings.judge_prompt}  seed={seed}",
+            fg=typer.colors.BRIGHT_BLACK,
+        )
 
         # The same seed drives the sampler and the model, so a run is reproducible end to
         # end and an A/B of two prompts compares like with like.
