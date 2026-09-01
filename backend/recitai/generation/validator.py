@@ -37,10 +37,18 @@ BANNED_PHRASE = "BANNED_PHRASE"
 NEGATION = "NEGATION"
 LEAKAGE = "LEAKAGE"
 EMPTY_FIELD = "EMPTY_FIELD"
+#: Not in §5.1. Added after measurement: asking which reason is the "primary" one, when
+#: the passage ranks nothing, is the single commonest source of two defensible answers
+#: (I-028). Telling the model not to do it did not work — the rate rose from 5% to 17% of
+#: stems. It is trivially detectable, so it belongs in the deterministic tier.
+INVENTED_RANKING = "INVENTED_RANKING"
 
 #: §5.1's negation check. Word-boundary matched: a naive substring scan fires on
 #: "cannot", "note", "notation" and "notably", which technical prose is full of (I-009).
 _NEGATION_WORDS = re.compile(r"\b(not|except|least)\b", re.I)
+
+#: Superlatives that impose an ordering. Harmless when the passage itself ranks things.
+_RANKING_WORDS = re.compile(r"\b(primary|primarily|main|chief|most important|foremost)\b", re.I)
 
 #: Words too common to make a phrase distinctive; a leakage match on these is noise.
 # fmt: off
@@ -144,8 +152,24 @@ async def check_option_overlap(question: GeneratedQuestion, client: LLMClient) -
     return []
 
 
+def check_invented_ranking(question: GeneratedQuestion, chunk_text: str) -> list[str]:
+    """Reject a stem that asks for the "primary" or "main" one when the passage ranks
+    nothing (I-028).
+
+    The passage lists several properties; the model asks which is *most important*; two
+    options are then defensible and the student who reasons correctly is marked wrong.
+    Where the passage does use the ranking word itself, the question is fair and is
+    allowed through.
+    """
+    if not _RANKING_WORDS.search(question.stem):
+        return []
+    if _RANKING_WORDS.search(chunk_text):
+        return []
+    return [INVENTED_RANKING]
+
+
 async def run_deterministic(
-    question: GeneratedQuestion, client: LLMClient | None = None
+    question: GeneratedQuestion, client: LLMClient | None = None, chunk_text: str = ""
 ) -> list[str]:
     """§5.1. All checks run; the report lists every failure, not just the first."""
     failures: list[str] = []
@@ -154,6 +178,7 @@ async def run_deterministic(
     failures += check_banned_phrases(question)
     failures += check_negation(question)
     failures += check_leakage(question)
+    failures += check_invented_ranking(question, chunk_text)
     if client is not None and not failures:
         # Only worth the embedding calls if the free checks already passed.
         failures += await check_option_overlap(question, client)
@@ -194,7 +219,7 @@ async def validate(
 ) -> ValidatorReport:
     """Full validation: deterministic first, judge only on survivors (§5)."""
     started = time.perf_counter()
-    failures = await run_deterministic(question, client)
+    failures = await run_deterministic(question, client, chunk_text)
 
     judge_results: dict[str, bool] = {}
     judge_reason = ""

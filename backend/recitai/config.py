@@ -29,8 +29,12 @@ class Settings(BaseSettings):
     # Prompt selection is configuration, not code: §15 task 7 A/B-tests two prompt
     # versions against the harness, and §6 versions prompts by filename rather than
     # editing them in place.
-    question_prompt: str = "question_generation_v2"
-    judge_prompt: str = "validator_judge_v2"
+    # v1 by measurement, not inertia. A seeded A/B (seed 7, same corpus) showed v2 cost
+    # 40% of yield — 20 questions to 12 — while the "primary/main" construction it was
+    # written to prevent went from 5% of stems to 17%, and 3 of its 18 UNIQUE rejections
+    # affirmed the marked answer in their own reasoning. See plan/ISSUES.md I-028.
+    question_prompt: str = "question_generation_v1"
+    judge_prompt: str = "validator_judge_v1"
 
     log_level: str = "INFO"
 

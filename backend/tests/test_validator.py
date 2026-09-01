@@ -10,11 +10,13 @@ from recitai.generation.schemas import GeneratedOption, GeneratedQuestion
 from recitai.generation.validator import (
     BANNED_PHRASE,
     EMPTY_FIELD,
+    INVENTED_RANKING,
     LEAKAGE,
     LENGTH_BIAS,
     NEGATION,
     check_banned_phrases,
     check_empty,
+    check_invented_ranking,
     check_leakage,
     check_length_bias,
     check_negation,
@@ -137,3 +139,40 @@ def test_schema_rejects_two_correct_options() -> None:
             explanation="e",
             difficulty="recall",
         )
+
+
+# ------------------------------------------------------- invented ranking (I-028) ----
+
+
+def test_invented_ranking_is_rejected_when_the_passage_ranks_nothing() -> None:
+    """The commonest source of two defensible answers: the passage lists several
+    properties, the model asks which is *most important*, and a student who reasons
+    correctly is marked wrong."""
+    q = _q(stem="What is the main problem with deletion in non-recursive views?")
+    passage = "Deletion in non-recursive views is difficult. View maintenance is costly."
+    assert check_invented_ranking(q, passage) == [INVENTED_RANKING]
+
+
+def test_invented_ranking_is_allowed_when_the_passage_ranks() -> None:
+    """A question is fair if the passage itself picks one out."""
+    q = _q(stem="What is the primary objective of semantic data control?")
+    passage = "The primary objective of semantic data control is to ensure integrity."
+    assert check_invented_ranking(q, passage) == []
+
+
+def test_ordinary_stems_are_untouched_by_the_ranking_check() -> None:
+    assert check_invented_ranking(_q(), "any passage at all") == []
+
+
+@pytest.mark.parametrize(
+    "stem",
+    [
+        "What is the primary key of the relation?",
+        "Which is the chief advantage of vertical fragmentation?",
+        "What is the most important step in the VF algorithm?",
+    ],
+)
+def test_ranking_variants_are_caught(stem: str) -> None:
+    assert check_invented_ranking(_q(stem=stem), "a passage without ranking words") == [
+        INVENTED_RANKING
+    ]
