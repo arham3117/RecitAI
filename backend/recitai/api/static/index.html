@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RecitAI</title>
+<style>
+  :root{
+    --ink:#16181d; --muted:#6b7280; --line:#e5e3de; --bg:#faf9f7; --panel:#fff;
+    --accent:#2f5bea; --accent-soft:#eef2fe;
+    --good:#0f7b52; --good-soft:#e8f5ee; --bad:#b42318; --bad-soft:#fdecea;
+    --radius:10px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .app{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
+  aside{border-right:1px solid var(--line);padding:22px 18px;background:var(--panel)}
+  .brand{font-weight:650;letter-spacing:-.01em;margin-bottom:2px}
+  .brand small{display:block;color:var(--muted);font-weight:400;font-size:12px;letter-spacing:0}
+  h2{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);
+     margin:26px 0 8px;font-weight:600}
+  main{padding:34px 40px;max-width:860px}
+  h1{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
+  .sub{color:var(--muted);margin:0 0 26px}
+  .topic{display:flex;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:7px;
+         cursor:pointer;font-size:13.5px}
+  .topic:hover{background:var(--bg)}
+  .topic.on{background:var(--accent-soft);color:var(--accent);font-weight:550}
+  .topic span:last-child{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px}
+  .topic.on span:last-child{color:var(--accent)}
+  button{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);
+         padding:9px 15px;border-radius:8px;cursor:pointer}
+  button:hover:not(:disabled){border-color:#cfcbc3}
+  button.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+  button.primary:hover:not(:disabled){background:#000}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px}
+  .opt{display:flex;gap:12px;align-items:flex-start;width:100%;text-align:left;padding:13px 15px;
+       margin-bottom:9px;border-radius:9px;background:var(--panel)}
+  .opt kbd{flex:none;width:21px;height:21px;display:grid;place-items:center;border-radius:5px;
+           background:var(--bg);border:1px solid var(--line);font:600 11px/1 ui-monospace,monospace;
+           color:var(--muted);margin-top:1px}
+  .opt.sel{border-color:var(--accent);background:var(--accent-soft)}
+  .opt.correct{border-color:var(--good);background:var(--good-soft)}
+  .opt.wrong{border-color:var(--bad);background:var(--bad-soft)}
+  .opt.wrong .txt{text-decoration:line-through;text-decoration-color:#e5a8a2}
+  .why{font-size:13px;color:var(--muted);margin-top:6px}
+  .opt.wrong .why{color:var(--bad)}
+  .verdict{font-weight:600;margin:0 0 4px}
+  .verdict.ok{color:var(--good)} .verdict.no{color:var(--bad)}
+  blockquote{margin:14px 0 0;padding:13px 16px;border-left:3px solid var(--line);
+             background:var(--bg);border-radius:0 8px 8px 0;font-size:13.5px;white-space:pre-wrap;
+             max-height:190px;overflow:auto}
+  .cite{font-size:12px;color:var(--muted);margin-top:8px}
+  .cite b{color:var(--ink);font-weight:600}
+  .prog{height:3px;background:var(--line);border-radius:2px;overflow:hidden;margin-bottom:24px}
+  .prog i{display:block;height:100%;background:var(--accent);transition:width .3s}
+  .muted{color:var(--muted)}
+  .stream{white-space:pre-wrap;font-size:14px;margin-top:12px;padding:13px 16px;background:var(--bg);
+          border-radius:8px;min-height:20px}
+  .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;background:var(--bg);
+        border:1px solid var(--line);color:var(--muted)}
+  .disclaimer{margin-top:30px;font-size:12px;color:var(--muted)}
+  .score{font-size:40px;font-weight:650;letter-spacing:-.03em}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand">RecitAI<small>practice from your own material</small></div>
+    <h2>Course</h2><div id="course" class="muted" style="font-size:13.5px">loading…</div>
+    <h2>Topics</h2><div id="topics"></div>
+    <h2>Material</h2><div id="docs" style="font-size:12.5px" class="muted"></div>
+  </aside>
+  <main id="main"></main>
+</div>
+<script>
+const API="/api"; let S={course:null,topics:[],sel:new Set(),quiz:null,attempt:null,i:0,answers:[]};
+const $=(h)=>{const d=document.createElement("div");d.innerHTML=h.trim();return d.firstElementChild};
+const esc=(s)=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+async function boot(){
+  const cs=await (await fetch(`${API}/courses`)).json();
+  if(!cs.length){document.getElementById("main").innerHTML="<h1>No course yet</h1><p class='sub'>Ingest material with <code>make ingest</code>.</p>";return}
+  S.course=cs[0];
+  document.getElementById("course").textContent=`${S.course.name} · ${S.course.chunk_count} passages`;
+  S.topics=await (await fetch(`${API}/courses/${S.course.id}/topics`)).json();
+  drawTopics();
+  const docs=await (await fetch(`${API}/courses/${S.course.id}/documents`)).json();
+  document.getElementById("docs").innerHTML=docs.map(d=>`<div style="padding:3px 8px">${esc(d.filename)}</div>`).join("");
+  home();
+}
+function drawTopics(){
+  document.getElementById("topics").innerHTML="";
+  S.topics.forEach(t=>{
+    const el=$(`<div class="topic${S.sel.has(t.id)?" on":""}"><span>${esc(t.name)}</span><span>${t.chunk_count}</span></div>`);
+    el.onclick=()=>{S.sel.has(t.id)?S.sel.delete(t.id):S.sel.add(t.id);drawTopics()};
+    document.getElementById("topics").appendChild(el);
+  });
+}
+async function home(){
+  const quizzes=await (await fetch(`${API}/courses/${S.course.id}/quizzes`)).json();
+  const m=document.getElementById("main");
+  m.innerHTML=`<h1>What do you want to practice?</h1>
+    <p class="sub">Questions are drawn only from your material, and every answer cites the slide it came from.</p>
+    <div class="card">
+      <div class="row">
+        <label class="muted" style="font-size:13.5px">Questions</label>
+        <input id="n" type="number" value="5" min="1" max="20" style="width:64px;padding:8px;border:1px solid var(--line);border-radius:8px;font:inherit">
+        <button class="primary" id="go">Generate new</button>
+        <span class="muted" style="font-size:12.5px">${S.sel.size?`${S.sel.size} topic(s) selected`:"whole course"}</span>
+      </div>
+      <p class="muted" style="font-size:12.5px;margin:14px 0 0">Generation runs locally and takes roughly 20 seconds per question.</p>
+    </div>
+    ${quizzes.length?`<h2 style="margin-top:30px">Ready now</h2>
+      <div class="card"><div class="row" style="justify-content:space-between">
+        <div><b>${quizzes[0].question_count} questions</b>
+        <div class="muted" style="font-size:12.5px">generated ${new Date(quizzes[0].created_at).toLocaleString()}
+        · validator pass rate ${Math.round((quizzes[0].generation_meta?.validator_pass_rate??0)*100)}%</div></div>
+        <button class="primary" id="start">Start</button></div></div>`:""}
+    <p class="disclaimer">RecitAI can make mistakes. Verify important facts against the source.</p>`;
+  const st=document.getElementById("start"); if(st)st.onclick=()=>startQuiz(quizzes[0].id);
+  document.getElementById("go").onclick=generate;
+}
+async function generate(){
+  const n=+document.getElementById("n").value;
+  const m=document.getElementById("main");
+  m.innerHTML=`<h1>Generating</h1><p class="sub" id="d">starting…</p><div class="prog"><i id="b" style="width:4%"></i></div>
+    <p class="muted" style="font-size:13px">Each question is generated from a passage, then checked for length bias, near-duplicate options, answer leakage and groundedness. Rejected questions are regenerated.</p>`;
+  const body={course_id:S.course.id,n,difficulty:"recall"};
+  if(S.sel.size)body.topic_ids=[...S.sel];
+  const job=await (await fetch(`${API}/quizzes`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)})).json();
+  const t=setInterval(async()=>{
+    const j=await (await fetch(`${API}/jobs/${job.job_id}`)).json();
+    document.getElementById("d").textContent=j.detail||j.status;
+    document.getElementById("b").style.width=Math.max(4,(j.progress/Math.max(1,j.total))*100)+"%";
+    if(j.status==="complete"&&j.result_id){clearInterval(t);startQuiz(j.result_id)}
+    if(j.status==="failed"){clearInterval(t);
+      document.getElementById("main").innerHTML=`<h1>Generation failed</h1><p class="sub">${esc(j.error||"")}</p><button id="back">Back</button>`;
+      document.getElementById("back").onclick=home}
+  },1500);
+}
+async function startQuiz(id){
+  S.quiz=await (await fetch(`${API}/quizzes/${id}`)).json();
+  S.attempt=await (await fetch(`${API}/attempts`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({quiz_id:id})})).json();
+  S.i=0;S.answers=[];question();
+}
+function question(){
+  const q=S.quiz.questions[S.i];
+  if(!q)return results();
+  let sel=null,done=false;
+  const m=document.getElementById("main");
+  m.innerHTML=`<div class="prog"><i style="width:${(S.i/S.quiz.questions.length)*100}%"></i></div>
+    <div class="row" style="justify-content:space-between;margin-bottom:14px">
+      <span class="muted" style="font-size:13px">Question ${S.i+1} of ${S.quiz.questions.length}</span>
+      <span class="pill">${esc(q.section_path.join(" › ")||"")}</span></div>
+    <div class="card"><h1 style="font-size:19px;line-height:1.45;margin-bottom:18px">${esc(q.stem)}</h1>
+      <div id="opts"></div>
+      <div class="row" style="margin-top:14px"><button class="primary" id="sub" disabled>Submit</button>
+        <span class="muted" style="font-size:12.5px">press 1–4 to choose, Enter to submit</span></div></div>
+    <div id="panel"></div>`;
+  const opts=document.getElementById("opts");
+  q.options.forEach((o,k)=>{
+    const el=$(`<button class="opt"><kbd>${k+1}</kbd><span class="txt">${esc(o.text)}</span></button>`);
+    el.onclick=()=>{if(done)return;sel=o.id;[...opts.children].forEach(c=>c.classList.remove("sel"));
+      el.classList.add("sel");document.getElementById("sub").disabled=false};
+    opts.appendChild(el);
+  });
+  const submit=async()=>{
+    if(done||!sel)return;done=true;document.getElementById("sub").disabled=true;
+    const r=await (await fetch(`${API}/attempts/${S.attempt.id}/answers`,{method:"POST",
+      headers:{"content-type":"application/json"},
+      body:JSON.stringify({question_id:q.id,selected_option_id:sel})})).json();
+    S.answers.push(r);
+    q.options.forEach((o,k)=>{const c=opts.children[k];c.classList.remove("sel");
+      if(o.id===r.correct_option_id)c.classList.add("correct");
+      else if(o.id===sel){c.classList.add("wrong");
+        if(r.why_wrong)c.insertAdjacentHTML("beforeend",`<div class="why">${esc(r.why_wrong)}</div>`)}});
+    panel(r,q);
+  };
+  document.getElementById("sub").onclick=submit;
+  document.onkeydown=(e)=>{
+    if(done&&e.key==="Enter")return next();
+    if("1234".includes(e.key)){opts.children[+e.key-1]?.click()}
+    if(e.key==="Enter")submit();
+  };
+}
+function panel(r,q){
+  // The explanation panel is where the product's value lands (§14).
+  const s=r.source;
+  document.getElementById("panel").innerHTML=`
+    <div class="card" style="margin-top:16px">
+      <p class="verdict ${r.is_correct?"ok":"no"}">${r.is_correct?"Correct":"Not quite"}</p>
+      <p style="margin:0">${esc(r.explanation)}</p>
+      ${s?`<blockquote>${esc(s.text)}</blockquote>
+        <p class="cite">From <b>${esc(s.document_name)}</b>, slide <b>${s.page}</b> — ${esc(s.section_path.join(" › "))}</p>`:""}
+      <div class="row" style="margin-top:16px">
+        <button id="ask">Explain differently</button>
+        <button class="primary" id="next">${S.i+1<S.quiz.questions.length?"Next question":"See results"}</button>
+      </div>
+      <div class="stream" id="stream" hidden></div>
+    </div>`;
+  document.getElementById("next").onclick=next;
+  document.getElementById("ask").onclick=()=>followup(q.id);
+}
+async function followup(qid){
+  const box=document.getElementById("stream");box.hidden=false;box.textContent="";
+  document.getElementById("ask").disabled=true;
+  const res=await fetch(`${API}/questions/${qid}/explain`,{method:"POST",
+    headers:{"content-type":"application/json"},body:JSON.stringify({followup:"Explain this differently, more simply."})});
+  const reader=res.body.getReader(),dec=new TextDecoder();
+  for(;;){const{done,value}=await reader.read();if(done)break;
+    dec.decode(value,{stream:true}).split("\n").forEach(l=>{if(l.startsWith("data:"))box.textContent+=l.slice(5)});
+    box.scrollTop=box.scrollHeight}
+}
+function next(){S.i++;document.onkeydown=null;question()}
+async function results(){
+  const r=await (await fetch(`${API}/attempts/${S.attempt.id}/results`)).json();
+  const missed=S.answers.filter(a=>!a.is_correct).length;
+  document.getElementById("main").innerHTML=`<h1>Results</h1>
+    <div class="card"><div class="score">${Math.round(r.score*100)}%</div>
+    <p class="muted">${r.correct} of ${r.answered} correct${missed?` · ${missed} worth revisiting`:""}</p></div>
+    <div class="row" style="margin-top:18px"><button class="primary" id="again">Back to practice</button></div>
+    <p class="disclaimer">RecitAI can make mistakes. Verify important facts against the source.</p>`;
+  document.getElementById("again").onclick=home;
+}
+boot();
+</script>
+</body>
+</html>

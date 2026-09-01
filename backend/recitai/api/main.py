@@ -1,9 +1,11 @@
 """FastAPI application (spec §12)."""
 
+from pathlib import Path
+
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from recitai.api.routes import attempts, content, quizzes
 
@@ -25,6 +27,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+STATIC = Path(__file__).resolve().parent / "static"
+
+
+@app.get("/", include_in_schema=False)
+async def index() -> FileResponse:
+    """The demo UI. Phase 6 proper is a Next.js app (§14); this is the interim
+    single-page client — see plan/DECISIONS.md D-015."""
+    return FileResponse(STATIC / "index.html")
+
 
 app.include_router(content.router, prefix="/api")
 app.include_router(quizzes.router, prefix="/api")
