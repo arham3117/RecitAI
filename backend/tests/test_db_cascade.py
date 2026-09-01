@@ -16,10 +16,14 @@ pytestmark = pytest.mark.asyncio
 
 
 async def _db_available() -> bool:
+    """True when Postgres answers. Only a genuine connection failure counts as absent —
+    other errors must surface rather than be reported as a missing service."""
+    import asyncpg
+
     try:
         async with engine.connect():
             return True
-    except Exception:
+    except (asyncpg.CannotConnectNowError, ConnectionRefusedError, OSError):
         return False
 
 

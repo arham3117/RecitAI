@@ -66,6 +66,22 @@ class VectorStore:
             ),
         )
 
+    async def set_topic_for_chunks(self, topic_id: uuid.UUID, chunk_ids: list[uuid.UUID]) -> None:
+        """Write `topic_id` into the payload of already-indexed chunks.
+
+        Ingestion writes vectors before the topic tree exists, so every payload starts
+        with `topic_id: null`. The resolver's expansion step (§3.2) reads exactly that
+        field: left unset, free-text scoping silently degrades to the whole course and
+        nothing reports a problem.
+        """
+        if not chunk_ids:
+            return
+        await self._client.set_payload(
+            self.collection,
+            payload={"topic_id": str(topic_id)},
+            points=[str(c) for c in chunk_ids],
+        )
+
     async def count(self, course_id: uuid.UUID | None = None) -> int:
         flt = None
         if course_id is not None:

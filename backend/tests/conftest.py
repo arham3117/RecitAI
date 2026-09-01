@@ -38,3 +38,18 @@ def synthetic_deck() -> Path:
             slide.notes_slide.notes_text_frame.text = notes
     prs.save(str(SYNTHETIC_DECK))
     return SYNTHETIC_DECK
+
+
+@pytest.fixture(autouse=True)
+async def _dispose_engine_between_tests():  # type: ignore[no-untyped-def]
+    """Give every test a connection pool bound to its own event loop.
+
+    SQLAlchemy's async pool binds to the loop that first used it, and pytest-asyncio runs
+    each test in a fresh loop. Without disposal the second DB-touching test fails with
+    "Event loop is closed" — which a broad `except` around a connectivity probe reports
+    as "database unreachable", silently skipping real coverage.
+    """
+    yield
+    from recitai.db.session import engine
+
+    await engine.dispose()

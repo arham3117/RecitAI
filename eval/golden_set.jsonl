@@ -1,0 +1,10 @@
+{"id": 1, "query": "What is a covert channel and how can it leak unauthorized data?", "source_section": ["5-Semantic", "Covert Channels"]}
+{"id": 2, "query": "How many deletions convert the string Responsibility into Resp?", "source_section": ["4-Data Integration", "Edit Distance Example"]}
+{"id": 3, "query": "How is the attribute affinity measure between two attributes computed?", "source_section": ["3-Distribution Design", "VF – Affinity Measure aff(Ai,Aj)"]}
+{"id": 4, "query": "When is a set of simple predicates said to be complete?", "source_section": ["3-Distribution Design", "Completeness of Simple Predicates"]}
+{"id": 5, "query": "What is a semijoin and how is it derived from a join?", "source_section": ["2-Background", "Semijoin"]}
+{"id": 6, "query": "Why are employee name and title values repeated for every project?", "source_section": ["2-Background", "Repetition Anomaly"]}
+{"id": 7, "query": "What does transparency mean in a distributed DBMS?", "source_section": ["1-Introduction", "Transparency"]}
+{"id": 8, "query": "What is a materialized view and why is it stored rather than derived?", "source_section": ["5-Semantic", "Materialized View"]}
+{"id": 9, "query": "What constraints does the allocation model minimise total cost subject to?", "source_section": ["3-Distribution Design", "Allocation Model"]}
+{"id": 10, "query": "How are local conceptual schemas integrated into a global conceptual schema?", "source_section": ["4-Data Integration", "Problem Definition"]}

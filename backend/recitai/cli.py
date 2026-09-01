@@ -130,5 +130,95 @@ def chunks(
     asyncio.run(_run())
 
 
+@app.command()
+def topics(course_id: uuid.UUID = typer.Option(..., "--course", "-c")) -> None:
+    """Print the topic tree — should read like the actual syllabus (§10 VERIFY)."""
+
+    async def _run() -> None:
+        from recitai.retrieval.topic_map import topic_tree
+
+        tree = await topic_tree(course_id)
+        if not tree:
+            typer.secho("no topics — run 'recitai map-topics' first", fg=typer.colors.YELLOW)
+            return
+        for unit, children in tree:
+            typer.secho(f"\n{unit.name}  ({unit.chunk_count} chunks)", fg=typer.colors.CYAN)
+            for child in children:
+                typer.echo(f"  ├─ {child.name}  ({child.chunk_count})")
+
+    asyncio.run(_run())
+
+
+@app.command("map-topics")
+def map_topics(course_id: uuid.UUID = typer.Option(..., "--course", "-c")) -> None:
+    """Build the topic tree from chunk section paths (§10 task 2)."""
+
+    async def _run() -> None:
+        from recitai.retrieval.topic_map import build_topic_map
+
+        created = await build_topic_map(course_id)
+        typer.echo(f"{len(created)} topics mapped")
+
+    asyncio.run(_run())
+
+
+@app.command()
+def search(
+    course_id: uuid.UUID = typer.Option(..., "--course", "-c"),
+    q: str = typer.Option(..., "--q", help="Query text"),
+    k: int = typer.Option(5, "--k"),
+) -> None:
+    """Path B similarity search. Never used to choose chunks for generation."""
+
+    async def _run() -> None:
+        from recitai.retrieval.search import search as run_search
+
+        client = OllamaClient()
+        store = VectorStore()
+        try:
+            hits = await run_search(q, client, store, course_id=course_id, limit=k)
+        finally:
+            await client.aclose()
+            await store.aclose()
+        for h in hits:
+            path = " > ".join(h.section_path)
+            typer.echo(f"{h.score:.3f}  p{h.page_start}-{h.page_end}  {path}")
+
+    asyncio.run(_run())
+
+
+@app.command()
+def sample(
+    course_id: uuid.UUID = typer.Option(..., "--course", "-c"),
+    n: int = typer.Option(20, "--n"),
+    topic: list[uuid.UUID] = typer.Option([], "--topic", help="Restrict to these topics"),
+    seed: int = typer.Option(None, "--seed", help="Fixed seed makes output reproducible"),
+) -> None:
+    """Path A coverage sampling — what quiz generation actually uses (§3.3)."""
+
+    async def _run() -> None:
+        from recitai.retrieval.resolver import Scope
+        from recitai.retrieval.sampler import sample_chunks
+
+        scope = Scope(course_id=course_id, topic_ids=list(topic))
+        chunks, report = await sample_chunks(scope, n, seed=seed)
+        for c in chunks:
+            path = " > ".join(c.section_path)
+            typer.echo(
+                f"p{c.page_start}-{c.page_end}  {c.token_count:>4}tok  "
+                f"used={c.quiz_usage_count}  {path}"
+            )
+        typer.secho(
+            f"\n{report.delivered}/{report.requested} chunks   "
+            f"topics {report.topics_covered}/{report.topics_in_scope} "
+            f"({report.coverage:.0%} coverage)",
+            fg=typer.colors.CYAN,
+        )
+        if report.shortfall_reason:
+            typer.secho(f"shortfall: {report.shortfall_reason}", fg=typer.colors.YELLOW)
+
+    asyncio.run(_run())
+
+
 if __name__ == "__main__":
     app()
