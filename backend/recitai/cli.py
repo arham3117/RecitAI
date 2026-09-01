@@ -244,12 +244,15 @@ def generate(
         # produced a set of questions meant reading generation_meta out of the database,
         # and only for the most recent run — which is no help when comparing two.
         from recitai.config import settings as _settings
-        from recitai.constants import GEN_MODEL
         from recitai.generation.pipeline import generate_quiz
         from recitai.retrieval.resolver import Scope
 
+        # settings.gen_model, NOT constants.GEN_MODEL. The constant is the spec's fixed
+        # value (§4.1); the model actually used is env-overridable. Printing the constant
+        # made a model-swap run label itself with the wrong model — the precise failure
+        # this line was added to prevent.
         typer.secho(
-            f"model={GEN_MODEL}  question_prompt={_settings.question_prompt}  "
+            f"model={_settings.gen_model}  question_prompt={_settings.question_prompt}  "
             f"judge_prompt={_settings.judge_prompt}  seed={seed}",
             fg=typer.colors.BRIGHT_BLACK,
         )

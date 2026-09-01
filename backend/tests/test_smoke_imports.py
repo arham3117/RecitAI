@@ -51,3 +51,21 @@ def test_options_always_carry_temperature_and_limit() -> None:
     options = OllamaClient(seed=1)._options(0.3)
     assert options["temperature"] == 0.3
     assert options["num_predict"] == constants.GEN_MAX_TOKENS
+
+
+def test_settings_gen_model_follows_the_environment() -> None:
+    """A run must report the model it actually uses. `constants.GEN_MODEL` is the spec's
+    fixed value (§4.1); `settings.gen_model` is what the client calls. Printing the
+    former made a model-swap run label itself with the wrong model — the exact failure the
+    config line was added to prevent."""
+    import os
+
+    from recitai.config import Settings
+
+    assert Settings().gen_model == constants.GEN_MODEL
+    os.environ["GEN_MODEL"] = "qwen2.5:14b-instruct-q4_K_M"
+    try:
+        assert Settings().gen_model == "qwen2.5:14b-instruct-q4_K_M"
+        assert constants.GEN_MODEL != "qwen2.5:14b-instruct-q4_K_M", "the constant must not move"
+    finally:
+        del os.environ["GEN_MODEL"]
