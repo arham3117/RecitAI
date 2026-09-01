@@ -197,6 +197,7 @@ async def validate(
     failures = await run_deterministic(question, client)
 
     judge_results: dict[str, bool] = {}
+    judge_reason = ""
     if not failures and run_judge_checks:
         verdict = await run_judge(question, chunk_text, client)
         judge_results = {
@@ -204,6 +205,7 @@ async def validate(
             "unique": verdict.unique,
             "plausible": verdict.plausible,
         }
+        judge_reason = verdict.reason
         failures += [name.upper() for name, ok in judge_results.items() if not ok]
 
     report = ValidatorReport(
@@ -219,5 +221,10 @@ async def validate(
         failures=failures,
         attempt=attempt,
         duration_ms=report.duration_ms,
+        # The judge explains itself and we were discarding it. Without the reason there is
+        # no way to tell a correct rejection from an over-strict one, which is exactly the
+        # question a sharpened judge raises (I-028).
+        judge_reason=judge_reason[:300] if judge_reason else None,
+        stem=question.stem[:120] if not report.passed else None,
     )
     return report
