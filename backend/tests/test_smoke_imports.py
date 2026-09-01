@@ -35,3 +35,19 @@ def test_stream_returns_an_async_iterator_not_a_coroutine() -> None:
     import inspect
 
     assert inspect.isasyncgenfunction(OllamaClient.stream)
+
+
+def test_generation_seed_reaches_the_model_options() -> None:
+    """Without a model seed, two runs on identical inputs differ, so a single-run A/B of
+    two prompts measures noise as readily as improvement. Verified against the real model:
+    seeded runs are byte-identical, unseeded runs are not. Invariant I6 — determinism
+    where possible."""
+    seeded = OllamaClient(seed=42)
+    assert seeded._options(0.7)["seed"] == 42
+    assert "seed" not in OllamaClient()._options(0.7)
+
+
+def test_options_always_carry_temperature_and_limit() -> None:
+    options = OllamaClient(seed=1)._options(0.3)
+    assert options["temperature"] == 0.3
+    assert options["num_predict"] == constants.GEN_MAX_TOKENS

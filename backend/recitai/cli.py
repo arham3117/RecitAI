@@ -237,7 +237,9 @@ def generate(
         from recitai.generation.pipeline import generate_quiz
         from recitai.retrieval.resolver import Scope
 
-        client = OllamaClient()
+        # The same seed drives the sampler and the model, so a run is reproducible end to
+        # end and an A/B of two prompts compares like with like.
+        client = OllamaClient(seed=seed)
         try:
             scope = Scope(course_id=course_id, topic_ids=list(topic))
             run = await generate_quiz(

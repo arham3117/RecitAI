@@ -32,10 +32,15 @@ class OllamaClient:
         gen_model: str | None = None,
         embedding_model: str | None = None,
         timeout: float | None = None,
+        seed: int | None = None,
     ) -> None:
         self.base_url = (base_url or settings.ollama_base_url).rstrip("/")
         self.gen_model = gen_model or settings.gen_model
         self.embedding_model = embedding_model or settings.embedding_model
+        # A fixed seed makes generation reproducible. Without one, two runs on identical
+        # inputs differ, and a single-run A/B of two prompts measures noise as readily as
+        # improvement (invariant I6 — determinism where possible).
+        self.seed = seed
         self._client = httpx.AsyncClient(
             base_url=self.base_url,
             timeout=httpx.Timeout(timeout or settings.llm_timeout_seconds),
@@ -54,6 +59,15 @@ class OllamaClient:
 
     async def aclose(self) -> None:
         await self._client.aclose()
+
+    def _options(self, temperature: float) -> dict[str, object]:
+        options: dict[str, object] = {
+            "temperature": temperature,
+            "num_predict": GEN_MAX_TOKENS,
+        }
+        if self.seed is not None:
+            options["seed"] = self.seed
+        return options
 
     def _messages(self, prompt: str, system: str | None) -> list[dict[str, str]]:
         messages = []
@@ -74,7 +88,7 @@ class OllamaClient:
             "model": self.gen_model,
             "messages": self._messages(prompt, system),
             "stream": False,
-            "options": {"temperature": temperature, "num_predict": GEN_MAX_TOKENS},
+            "options": self._options(temperature),
         }
         if schema is not None:
             payload["format"] = schema
@@ -102,7 +116,7 @@ class OllamaClient:
             "model": self.gen_model,
             "messages": self._messages(prompt, system),
             "stream": True,
-            "options": {"temperature": GEN_TEMPERATURE, "num_predict": GEN_MAX_TOKENS},
+            "options": self._options(GEN_TEMPERATURE),
         }
         async with self._client.stream("POST", "/api/chat", json=payload) as resp:
             resp.raise_for_status()
