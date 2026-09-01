@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 import structlog
 from pydantic import ValidationError
 
-from recitai.constants import GEN_TEMPERATURE, MAX_REGEN_ATTEMPTS
+from recitai.constants import GEN_MODEL, GEN_TEMPERATURE, MAX_REGEN_ATTEMPTS
 from recitai.generation.prompts import load
 from recitai.generation.schemas import (
     Difficulty,
@@ -22,6 +22,7 @@ from recitai.generation.schemas import (
     ValidatorReport,
 )
 from recitai.generation.validator import validate
+from recitai.ingestion.chunker import count_tokens
 from recitai.llm.base import LLMClient
 from recitai.retrieval.sampler import ChunkRef
 
@@ -44,6 +45,8 @@ class GenerationOutcome:
     duration_ms: int = 0
     skip_reason: str | None = None
     prompt_version: str = ""
+    prompt_tokens: int = 0
+    output_tokens: int = 0
 
     @property
     def ok(self) -> bool:
@@ -86,12 +89,17 @@ async def generate_question(
 
     for attempt in range(1, max_attempts + 1):
         outcome.attempts = attempt
+        rendered = base + feedback
         raw = await client.complete(
-            base + feedback,
+            rendered,
             system=prompt.system,
             temperature=GEN_TEMPERATURE,
             schema=GeneratedQuestion.model_json_schema(),
         )
+        # Counted with tiktoken, the tokenizer of record (I-008). Not Llama's tokenizer,
+        # so these are consistent and comparable rather than exact.
+        outcome.prompt_tokens += count_tokens(prompt.system) + count_tokens(rendered)
+        outcome.output_tokens += count_tokens(raw)
 
         if _is_insufficient(raw):
             outcome.skip_reason = "model reported the passage is too thin for a question"
@@ -132,6 +140,10 @@ async def generate_question(
         attempts=outcome.attempts,
         duration_ms=outcome.duration_ms,
         prompt_version=outcome.prompt_version,
+        model=GEN_MODEL,
+        prompt_tokens=outcome.prompt_tokens,
+        output_tokens=outcome.output_tokens,
+        validator_verdict=(outcome.report.passed if outcome.report else None),
         skip_reason=outcome.skip_reason,
     )
     return outcome
