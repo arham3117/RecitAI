@@ -285,5 +285,30 @@ def generate(
     raise typer.Exit(asyncio.run(_run()))
 
 
+@app.command()
+def flashcards(
+    course_id: uuid.UUID = typer.Option(..., "--course", "-c"),
+    chunks_n: int = typer.Option(5, "--chunks", help="How many chunks to draw cards from"),
+    max_cards: int = typer.Option(3, "--max-cards", help="Cards per chunk"),
+    seed: int = typer.Option(None, "--seed"),
+) -> None:
+    """Generate flashcards from sampled chunks (§11 task 8)."""
+
+    async def _run() -> None:
+        from recitai.generation.pipeline import generate_flashcards_for_scope
+        from recitai.retrieval.resolver import Scope
+
+        client = OllamaClient()
+        try:
+            written = await generate_flashcards_for_scope(
+                Scope(course_id=course_id), chunks_n, client, max_cards=max_cards, seed=seed
+            )
+        finally:
+            await client.aclose()
+        typer.secho(f"{written} flashcards written", fg=typer.colors.GREEN)
+
+    asyncio.run(_run())
+
+
 if __name__ == "__main__":
     app()
