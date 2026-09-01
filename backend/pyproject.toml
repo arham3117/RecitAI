@@ -1,0 +1,81 @@
+[project]
+name = "recitai"
+version = "0.1.0"
+description = "Local-first RAG study partner: validated practice questions grounded in your own course material"
+requires-python = ">=3.12,<3.13"
+
+dependencies = [
+    # API
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    # Persistence
+    "sqlalchemy[asyncio]>=2.0",
+    "alembic>=1.14",
+    "asyncpg>=0.30",        # D-001: Postgres from the start
+    "greenlet>=3.1",        # required by SQLAlchemy's asyncio bridge
+    # Vector store
+    "qdrant-client>=1.12",
+    # Ingestion
+    "pymupdf>=1.24",
+    "pymupdf4llm>=0.0.17",
+    "python-pptx>=1.0",     # D-008: PPTX is the primary input format
+    "tiktoken>=0.8",
+    # Retrieval / learning
+    "rapidfuzz>=3.10",
+    "fsrs>=6.3",           # spec says "py-fsrs"; PyPI distribution is "fsrs" — see plan/ISSUES.md I-019
+    "numpy>=2.1",
+    # Runtime
+    "httpx>=0.27",          # D-007: direct to Ollama, no RAG framework
+    "structlog>=24.4",
+    "typer>=0.15",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.8",
+    "black>=24.10",
+    "mypy>=1.13",
+    "pre-commit>=4.0",
+]
+
+[project.scripts]
+recitai = "recitai.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["recitai"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+# constants.py is a verbatim transcription of spec §4.1 and is diff-checked against it by
+# tests/test_constants_verbatim.py. Formatting it would break that guarantee.
+force-exclude = "constants\\.py$"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["pptx.*", "fitz.*", "pymupdf4llm.*", "qdrant_client.*", "fsrs.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

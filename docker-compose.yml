@@ -1,0 +1,45 @@
+# Development topology (macOS / Apple Silicon).
+#
+# Ollama is deliberately absent: Docker on macOS has no GPU passthrough, so a
+# containerised model server would run CPU-only — roughly 10x slower, and it would make
+# Phase 7's latency measurements meaningless. It runs natively on the host instead and
+# is reached at http://localhost:11434. See plan/DECISIONS.md D-002.
+#
+# For the hosted topology (Linux + NVIDIA, Ollama containerised) see docker-compose.prod.yml.
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    ports:
+      - "6333:6333"   # REST
+      - "6334:6334"   # gRPC
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    healthcheck:
+      # The qdrant image ships no curl/wget; its entrypoint binary answers this instead.
+      test: ["CMD", "/qdrant/qdrant", "--version"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: recitai
+      POSTGRES_PASSWORD: recitai
+      POSTGRES_DB: recitai
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U recitai -d recitai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  qdrant_storage:
+  pg_data:
