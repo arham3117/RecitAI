@@ -220,5 +220,70 @@ def sample(
     asyncio.run(_run())
 
 
+@app.command()
+def generate(
+    course_id: uuid.UUID = typer.Option(..., "--course", "-c"),
+    n: int = typer.Option(10, "--n"),
+    topic: list[uuid.UUID] = typer.Option([], "--topic"),
+    difficulty: str = typer.Option("recall", "--difficulty"),
+    seed: int = typer.Option(None, "--seed"),
+    report: bool = typer.Option(False, "--report", help="Print every question and the stats"),
+    no_judge: bool = typer.Option(False, "--no-judge", help="Deterministic checks only"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Do not persist"),
+) -> None:
+    """Generate validated questions from sampled chunks (§11)."""
+
+    async def _run() -> int:
+        from recitai.generation.pipeline import generate_quiz
+        from recitai.retrieval.resolver import Scope
+
+        client = OllamaClient()
+        try:
+            scope = Scope(course_id=course_id, topic_ids=list(topic))
+            run = await generate_quiz(
+                scope,
+                n,
+                client,
+                difficulty=difficulty,  # type: ignore[arg-type]
+                seed=seed,
+                persist=not dry_run,
+                run_judge_checks=not no_judge,
+            )
+        finally:
+            await client.aclose()
+
+        if report:
+            # Read from the run itself, not the database: --dry-run persists nothing, and
+            # printing nothing at all is exactly the wrong response to --report.
+            for item in run.accepted:
+                q = item.question
+                typer.secho(f"\n{q.stem}", fg=typer.colors.CYAN)
+                for opt in q.options:
+                    mark = "*" if opt.is_correct else " "
+                    typer.echo(f"  {mark} {opt.id}) {opt.text}")
+                    if not opt.is_correct and opt.why_wrong:
+                        typer.echo(f"       why wrong: {opt.why_wrong}")
+                typer.echo(f"  -> {q.explanation}")
+                typer.echo(f"  [{q.difficulty}]  pages {item.page_refs}")
+
+        typer.secho(
+            f"\n{run.persisted}/{run.requested} questions persisted   "
+            f"validator pass rate {run.validator_pass_rate:.0%}   "
+            f"{run.duration_ms / 1000:.1f}s",
+            fg=typer.colors.GREEN if run.persisted else typer.colors.RED,
+        )
+        if run.validator_rejections:
+            typer.echo(f"  rejected by validator: {run.validator_rejections}  {run.failure_codes}")
+        if run.duplicates_rejected:
+            typer.echo(f"  rejected as duplicates: {run.duplicates_rejected}")
+        if run.insufficient_passages:
+            typer.echo(f"  passages too thin: {run.insufficient_passages}")
+        if run.sampler_shortfall:
+            typer.secho(f"  sampler: {run.sampler_shortfall}", fg=typer.colors.YELLOW)
+        return 0 if run.persisted else 1
+
+    raise typer.Exit(asyncio.run(_run()))
+
+
 if __name__ == "__main__":
     app()
