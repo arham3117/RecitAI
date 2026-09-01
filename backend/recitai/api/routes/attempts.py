@@ -10,7 +10,6 @@ moment the student is most likely to give up.
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from typing import Any
 
 import structlog
 from fastapi import APIRouter, HTTPException
@@ -18,9 +17,10 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sse_starlette.sse import EventSourceResponse
 
-from recitai.db.models import Answer, Attempt, Chunk, Document, Question, Quiz, TopicMastery
+from recitai.db.models import Answer, Attempt, Chunk, Document, Question, TopicMastery
 from recitai.db.session import session_scope
 from recitai.generation.prompts import load
+from recitai.learning.mastery import promote_missed_question, update_mastery
 from recitai.llm.ollama import OllamaClient
 
 log = structlog.get_logger(__name__)
@@ -70,38 +70,6 @@ class AnswerOut(BaseModel):
     source: SourceOut | None
 
 
-async def _update_mastery(session: Any, question: Question, is_correct: bool) -> None:
-    """Denormalised rollup, updated on every answer (§4.2).
-
-    It feeds the sampler's `weakness` term, so a topic the student is failing gets more
-    questions next time. Never recomputed from `answers` at query time.
-    """
-    if question.topic_id is None:
-        return
-    quiz = await session.get(Quiz, question.quiz_id)
-    if quiz is None:
-        return
-    mastery = await session.scalar(
-        select(TopicMastery).where(
-            TopicMastery.course_id == quiz.course_id, TopicMastery.topic_id == question.topic_id
-        )
-    )
-    if mastery is None:
-        # Column defaults are applied at flush, so a freshly constructed row has None
-        # here — incrementing it raises. Set the counters explicitly instead.
-        mastery = TopicMastery(
-            course_id=quiz.course_id,
-            topic_id=question.topic_id,
-            attempts_count=0,
-            correct_count=0,
-        )
-        session.add(mastery)
-    mastery.attempts_count = (mastery.attempts_count or 0) + 1
-    mastery.correct_count = (mastery.correct_count or 0) + (1 if is_correct else 0)
-    mastery.accuracy = mastery.correct_count / mastery.attempts_count
-    mastery.last_practiced_at = datetime.now(UTC)
-
-
 @router.post("/attempts/{attempt_id}/answers", response_model=AnswerOut)
 async def submit_answer(attempt_id: uuid.UUID, payload: AnswerIn) -> AnswerOut:
     async with session_scope() as session:
@@ -130,7 +98,13 @@ async def submit_answer(attempt_id: uuid.UUID, payload: AnswerIn) -> AnswerOut:
                 time_taken_ms=payload.time_taken_ms,
             )
         )
-        await _update_mastery(session, question, is_correct)
+        await update_mastery(session, question, is_correct)
+
+        # §13 task 4: a missed question becomes a flashcard. Done after the answer is
+        # recorded so a promotion failure cannot lose the answer itself.
+        promoted = None
+        if not is_correct:
+            promoted = question
 
         # The source passage, resolved from the question's own citation (§17: always
         # prefer the question's source_chunk_ids over a fresh search).
@@ -146,7 +120,7 @@ async def submit_answer(attempt_id: uuid.UUID, payload: AnswerIn) -> AnswerOut:
                     document_name=document.filename if document else "unknown",
                 )
 
-        return AnswerOut(
+        response = AnswerOut(
             is_correct=is_correct,
             correct_option_id=str(correct["id"]),
             selected_option_id=payload.selected_option_id,
@@ -154,6 +128,12 @@ async def submit_answer(attempt_id: uuid.UUID, payload: AnswerIn) -> AnswerOut:
             explanation=question.explanation,
             source=source,
         )
+
+    # Promoted after the answer transaction commits, so a promotion failure can never
+    # lose the answer itself (§13 task 4).
+    if promoted is not None:
+        await promote_missed_question(promoted)
+    return response
 
 
 @router.get("/attempts/{attempt_id}/results")

@@ -73,6 +73,8 @@
     <h2>Course</h2><div id="course" class="muted" style="font-size:13.5px">loading…</div>
     <h2>Topics</h2><div id="topics"></div>
     <h2>Material</h2><div id="docs" style="font-size:12.5px" class="muted"></div>
+    <h2>Flashcards</h2><div id="deck" style="font-size:12.5px" class="muted"></div>
+    <button id="reviewBtn" style="width:100%;margin-top:10px;font-size:13px" hidden>Review due cards</button>
   </aside>
   <main id="main"></main>
 </div>
@@ -90,6 +92,8 @@ async function boot(){
   drawTopics();
   const docs=await (await fetch(`${API}/courses/${S.course.id}/documents`)).json();
   document.getElementById("docs").innerHTML=docs.map(d=>`<div style="padding:3px 8px">${esc(d.filename)}</div>`).join("");
+  document.getElementById("reviewBtn").onclick=reviewSession;
+  await drawDeck();
   home();
 }
 function drawTopics(){
@@ -100,6 +104,57 @@ function drawTopics(){
     document.getElementById("topics").appendChild(el);
   });
 }
+async function drawDeck(){
+  const st=await (await fetch(`${API}/courses/${S.course.id}/flashcards/stats`)).json();
+  document.getElementById("deck").innerHTML=
+    `<div style="padding:3px 8px">${st.due} due · ${st.new} new</div>
+     <div style="padding:3px 8px">${st.learning} learning · ${st.mature} mature</div>`;
+  document.getElementById("reviewBtn").hidden = st.due===0;
+  return st;
+}
+
+// §13: the missed-question bridge is the strongest learning mechanic in the product, so
+// the review session is a first-class screen rather than a list.
+async function reviewSession(){
+  const due=await (await fetch(`${API}/courses/${S.course.id}/flashcards/due`)).json();
+  if(!due.length){await drawDeck();return home()}
+  let i=0;
+  const show=()=>{
+    const c=due[i];
+    if(!c){drawDeck();return home()}
+    document.onkeydown=null;
+    document.getElementById("main").innerHTML=`
+      <div class="prog"><i style="width:${(i/due.length)*100}%"></i></div>
+      <div class="row" style="justify-content:space-between;margin-bottom:14px">
+        <span class="muted" style="font-size:13px">Card ${i+1} of ${due.length}</span>
+        <span class="pill">${c.origin==="missed_question"?"from a question you missed":"generated"}</span></div>
+      <div class="card"><h1 style="font-size:19px;line-height:1.45">${esc(c.front)}</h1>
+        <div id="back" hidden><blockquote style="border-left-color:var(--accent)">${esc(c.back)}</blockquote>
+          ${c.page_refs.length?`<p class="cite">slide <b>${c.page_refs[0]}</b></p>`:""}</div>
+        <div class="row" style="margin-top:18px" id="acts">
+          <button class="primary" id="reveal">Show answer</button>
+          <span class="muted" style="font-size:12.5px">space to reveal</span></div></div>`;
+    const reveal=()=>{
+      document.getElementById("back").hidden=false;
+      document.getElementById("acts").innerHTML=
+        [["Again",1],["Hard",2],["Good",3],["Easy",4]].map(([l,r])=>
+          `<button data-r="${r}" class="${r===3?"primary":""}">${l} <span class="muted">${r}</span></button>`).join("")+
+        `<span class="muted" style="font-size:12.5px">press 1–4</span>`;
+      document.querySelectorAll("#acts button").forEach(b=>b.onclick=()=>grade(+b.dataset.r));
+      document.onkeydown=(e)=>{if("1234".includes(e.key))grade(+e.key)};
+    };
+    const grade=async(r)=>{
+      document.onkeydown=null;
+      await fetch(`${API}/flashcards/${c.id}/review`,{method:"POST",
+        headers:{"content-type":"application/json"},body:JSON.stringify({rating:r})});
+      i++;show();
+    };
+    document.getElementById("reveal").onclick=reveal;
+    document.onkeydown=(e)=>{if(e.key===" "||e.key==="Enter"){e.preventDefault();reveal()}};
+  };
+  show();
+}
+
 async function home(){
   const quizzes=await (await fetch(`${API}/courses/${S.course.id}/quizzes`)).json();
   const m=document.getElementById("main");
@@ -218,13 +273,18 @@ async function followup(qid){
 function next(){S.i++;document.onkeydown=null;question()}
 async function results(){
   const r=await (await fetch(`${API}/attempts/${S.attempt.id}/results`)).json();
+  const deck=await drawDeck();
   const missed=S.answers.filter(a=>!a.is_correct).length;
   document.getElementById("main").innerHTML=`<h1>Results</h1>
     <div class="card"><div class="score">${Math.round(r.score*100)}%</div>
     <p class="muted">${r.correct} of ${r.answered} correct${missed?` · ${missed} worth revisiting`:""}</p></div>
-    <div class="row" style="margin-top:18px"><button class="primary" id="again">Back to practice</button></div>
+    ${missed?`<div class="card" style="margin-top:14px"><b>${missed} card${missed>1?"s":""} added to your deck</b>
+      <p class="muted" style="margin:4px 0 0;font-size:13px">Questions you missed become flashcards, so you meet them again on a schedule rather than once.</p></div>`:""}
+    <div class="row" style="margin-top:18px"><button class="primary" id="again">Back to practice</button>
+      ${deck.due?`<button id="rev">Review ${deck.due} due card${deck.due>1?"s":""}</button>`:""}</div>
     <p class="disclaimer">RecitAI can make mistakes. Verify important facts against the source.</p>`;
   document.getElementById("again").onclick=home;
+  const rv=document.getElementById("rev"); if(rv)rv.onclick=reviewSession;
 }
 boot();
 </script>

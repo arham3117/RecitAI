@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
-from recitai.api.routes import attempts, content, quizzes
+from recitai.api.routes import attempts, content, flashcards, quizzes
 
 log = structlog.get_logger(__name__)
 
@@ -41,6 +41,7 @@ async def index() -> FileResponse:
 app.include_router(content.router, prefix="/api")
 app.include_router(quizzes.router, prefix="/api")
 app.include_router(attempts.router, prefix="/api")
+app.include_router(flashcards.router, prefix="/api")
 
 
 @app.exception_handler(Exception)
