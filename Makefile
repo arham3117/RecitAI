@@ -1,5 +1,5 @@
 # RecitAI — see plan/RECITAI_BUILD_SPEC.md §0.3
-.PHONY: help dev down lint format test smoke services ingest migrate eval compare install
+.PHONY: help dev down lint format test smoke services ingest migrate eval compare api install
 
 BACKEND := backend
 UV      := uv run --project $(BACKEND)
@@ -38,6 +38,9 @@ test:  ## pytest
 
 services:  ## verify postgres + qdrant are reachable and are the right instances
 	cd $(BACKEND) && uv run python ../scripts/check_services.py
+
+api:  ## run the API on :8000
+	cd $(BACKEND) && uv run uvicorn recitai.api.main:app --reload --port 8000
 
 smoke:  ## Phase 0 gate: structured output + embedding against the real models
 	cd $(BACKEND) && uv run python ../scripts/smoke_test.py

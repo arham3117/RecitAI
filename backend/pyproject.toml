@@ -67,8 +67,9 @@ extend-exclude = ["alembic"]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
-# Typer's whole interface is function calls in argument defaults.
+# Typer's and FastAPI's whole interface is function calls in argument defaults.
 "recitai/cli.py" = ["B008"]
+"recitai/api/routes/*.py" = ["B008"]
 
 [tool.black]
 line-length = 100
