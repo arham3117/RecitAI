@@ -1,5 +1,5 @@
 # RecitAI — see plan/RECITAI_BUILD_SPEC.md §0.3
-.PHONY: help dev down lint format test smoke services ingest migrate eval install
+.PHONY: help dev down lint format test smoke services ingest migrate eval compare install
 
 BACKEND := backend
 UV      := uv run --project $(BACKEND)
@@ -49,4 +49,7 @@ migrate:  ## apply database migrations
 	cd $(BACKEND) && uv run alembic upgrade head
 
 eval:  ## metrics report
-	@echo "not implemented until Phase 7 (spec §15)"; exit 1
+	@echo "full harness lands in Phase 7 (spec §15)"; exit 1
+
+compare:  ## compare generation runs: make compare LOGS="a.txt b.txt"
+	cd $(BACKEND) && uv run python ../eval/compare_runs.py $(LOGS)
