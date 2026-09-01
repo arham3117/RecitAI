@@ -126,6 +126,16 @@ class _PositionedText:
     top: int
     left: int
     text: str
+    width: int = 0
+    height: int = 0
+
+    @property
+    def right(self) -> int:
+        return self.left + self.width
+
+    @property
+    def bottom(self) -> int:
+        return self.top + self.height
 
 
 def _pptx_shape_text(shape: Any, title_id: int | None) -> list[_PositionedText]:
@@ -156,7 +166,10 @@ def _pptx_shape_text(shape: Any, title_id: int | None) -> list[_PositionedText]:
             if any(cells):
                 out.append(
                     _PositionedText(
-                        top=(top or 0) + row_index, left=left or 0, text=" | ".join(cells)
+                        top=(top or 0) + row_index,
+                        left=left or 0,
+                        text=" | ".join(cells),
+                        width=getattr(shape, "width", 0) or 0,
                     )
                 )
         return out
@@ -171,18 +184,97 @@ def _pptx_shape_text(shape: Any, title_id: int | None) -> list[_PositionedText]:
                     top=top if top is not None else 1 << 40,
                     left=left if left is not None else 0,
                     text=text,
+                    width=getattr(shape, "width", 0) or 0,
+                    height=getattr(shape, "height", 0) or 0,
                 )
             )
     return out
 
 
-def _reading_order(items: list[_PositionedText]) -> list[str]:
-    """Group positioned text into visual rows, top to bottom then left to right.
+#: A vertical gap this wide separates two layout blocks — two tables side by side, or a
+#: diagram beside its caption. 0.4in on a 13.3in slide. Measured, not guessed: the gutter
+#: between `EMP` and `EMP × PAY` on the slide that produced I-027 is 0.59in, and separate
+#: shapes are the only way a gap arises at all (a bullet list is one text frame, so it
+#: cannot be split by this).
+_COLUMN_GUTTER_EMU = 365760
 
-    Cells sharing a row are joined with " | " so a header row and its values stay on one
-    line — the association between "BUDGET" and "150000" is the whole content of the
-    slide, and it is lost the moment they land on separate lines.
+#: A horizontal gap this tall separates stacked blocks. 0.4in.
+_ROW_GUTTER_EMU = 365760
+
+#: Depth cap for the recursive cut. Real slides never nest this far; the cap only stops a
+#: pathological layout from recursing indefinitely.
+_MAX_CUT_DEPTH = 8
+
+
+def _gaps(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Empty intervals between merged spans, widest first, as (size, midpoint)."""
+    if len(spans) < 2:
+        return []
+    ordered = sorted(spans)
+    found: list[tuple[int, int]] = []
+    reach = ordered[0][1]
+    for start, end in ordered[1:]:
+        if start > reach:
+            found.append((start - reach, reach + (start - reach) // 2))
+        reach = max(reach, end)
+    return sorted(found, reverse=True)
+
+
+def _dominant_gap(spans: list[tuple[int, int]], floor: int) -> tuple[int, int]:
+    """The widest gap, but only if it stands out from the others.
+
+    A table's columns are separated by gaps of roughly equal width, so no single one
+    dominates and the table is left whole. Two blocks side by side are separated by one
+    gutter much wider than anything inside either block. Requiring dominance is what
+    distinguishes them; an absolute threshold alone cannot, because a real gutter measured
+    on this corpus is only 0.59in.
     """
+    found = _gaps(spans)
+    if not found:
+        return (0, 0)
+    widest, at = found[0]
+    if widest < floor:
+        return (0, 0)
+    if len(found) > 1 and widest < 2 * found[1][0]:
+        return (0, 0)
+    return (widest, at)
+
+
+def _cut(items: list[_PositionedText], depth: int = 0) -> list[list[_PositionedText]]:
+    """Recursive XY-cut: split on the widest whitespace gutter until none remains.
+
+    Without this, two tables printed side by side are banded into shared rows and their
+    columns interleave — which produced a factually wrong question about the shape of a
+    Cartesian product (plan/ISSUES.md I-027). Reading order is not a single sweep down the
+    slide; it is blocks, each read in turn.
+    """
+    if len(items) < 2 or depth >= _MAX_CUT_DEPTH:
+        return [items]
+
+    x_gap, x_at = _dominant_gap([(i.left, i.right) for i in items], _COLUMN_GUTTER_EMU)
+    y_gap, y_at = _dominant_gap([(i.top, i.bottom) for i in items], _ROW_GUTTER_EMU)
+
+    # Columns are cut before rows, even when a horizontal gap is wider. On the I-027
+    # slide the tallest vertical gap sits between two left-hand tables while the
+    # right-hand table spans the full height — cutting on it first would slice that table
+    # in half. Reading order is columns, then rows within each column.
+    if x_gap:
+        left = [i for i in items if i.left < x_at]
+        right = [i for i in items if i.left >= x_at]
+        if left and right:
+            return _cut(left, depth + 1) + _cut(right, depth + 1)
+
+    if y_gap:
+        top = [i for i in items if i.top < y_at]
+        bottom = [i for i in items if i.top >= y_at]
+        if top and bottom:
+            return _cut(top, depth + 1) + _cut(bottom, depth + 1)
+
+    return [items]
+
+
+def _band_rows(items: list[_PositionedText]) -> list[str]:
+    """Group one block's text into visual rows, top to bottom then left to right."""
     if not items:
         return []
     ordered = sorted(items, key=lambda i: (i.top, i.left))
@@ -196,10 +288,24 @@ def _reading_order(items: list[_PositionedText]) -> list[str]:
     lines: list[str] = []
     for row in rows:
         cells = [c.text for c in sorted(row, key=lambda i: i.left)]
-        if len(cells) == 1:
-            lines.append(cells[0])
-        else:
-            lines.append(" | ".join(cells))
+        lines.append(cells[0] if len(cells) == 1 else " | ".join(cells))
+    return lines
+
+
+def _reading_order(items: list[_PositionedText]) -> list[str]:
+    """Slide text in reading order: blocks first, then rows within each block.
+
+    Cells sharing a row are joined with " | " so a header row and its values stay on one
+    line — the association between "BUDGET" and "150000" is the content of the slide, and
+    it is lost the moment they land on separate lines.
+    """
+    if not items:
+        return []
+    blocks = _cut(items)
+    # Blocks come back in cut order, which is already top-to-bottom / left-to-right.
+    lines: list[str] = []
+    for block in blocks:
+        lines.extend(_band_rows(block))
     return lines
 
 

@@ -31,13 +31,13 @@ def _q(
     options = [GeneratedOption(id="A", text=correct, is_correct=True, why_wrong=None)]
     for letter, text in zip("BCD", distractors, strict=True):
         options.append(
-            GeneratedOption(id=letter, text=text, is_correct=False, why_wrong="a misconception")  # type: ignore[arg-type]
+            GeneratedOption(id=letter, text=text, is_correct=False, why_wrong="a misconception")
         )
     return GeneratedQuestion(
         stem=stem,
         options=options,
         explanation=explanation,
-        difficulty=difficulty,  # type: ignore[arg-type]
+        difficulty=difficulty,
     )
 
 
