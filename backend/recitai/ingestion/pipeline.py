@@ -15,7 +15,7 @@ from pathlib import Path
 import structlog
 from sqlalchemy import delete, func, select
 
-from recitai.db.models import Chunk, Course, Document
+from recitai.db.models import Chunk, Course, Document, Question, Quiz
 from recitai.db.session import session_scope
 from recitai.ingestion.chunker import chunk_document
 from recitai.ingestion.cleaner import clean
@@ -43,6 +43,50 @@ class IngestResult:
     @property
     def ok(self) -> bool:
         return self.status in {"complete", "skipped"}
+
+
+async def _discard_derived_questions(document_id: uuid.UUID) -> int:
+    """Delete questions whose source chunks belong to a document being re-ingested.
+
+    `questions.source_chunk_ids` is a JSON array, so the database cannot enforce the
+    reference: replacing a document's chunks leaves every question generated from it
+    citing rows that no longer exist. The student clicks through to the source and finds
+    nothing, which is the exact failure invariant I1 exists to prevent — arriving after
+    the fact rather than at generation time.
+
+    Deleting them is the honest response. A re-ingest means the passage changed, and this
+    project has already seen a case where it changed because the old passage was **wrong**
+    (I-027) — questions derived from it should not outlive it. Quizzes left with no
+    questions go too.
+    """
+    async with session_scope() as session:
+        chunk_ids = {
+            str(cid)
+            for cid in (
+                await session.execute(select(Chunk.id).where(Chunk.document_id == document_id))
+            )
+            .scalars()
+            .all()
+        }
+        if not chunk_ids:
+            return 0
+
+        questions = list((await session.execute(select(Question))).scalars().all())
+        doomed = [q for q in questions if chunk_ids.intersection(q.source_chunk_ids or [])]
+        affected_quizzes = {q.quiz_id for q in doomed}
+        for question in doomed:
+            await session.delete(question)
+        await session.flush()
+
+        for quiz_id in affected_quizzes:
+            remaining = await session.scalar(
+                select(func.count()).select_from(Question).where(Question.quiz_id == quiz_id)
+            )
+            if not remaining:
+                quiz = await session.get(Quiz, quiz_id)
+                if quiz is not None:
+                    await session.delete(quiz)
+        return len(doomed)
 
 
 async def get_or_create_course(name: str, code: str | None = None) -> uuid.UUID:
@@ -89,6 +133,14 @@ async def ingest_file(
             await session.delete(existing)
 
     if existing is not None:
+        orphaned = await _discard_derived_questions(existing.id)
+        if orphaned:
+            log.warning(
+                "ingest.discarded_stale_questions",
+                filename=path.name,
+                questions=orphaned,
+                reason="their source chunks were replaced by this re-ingest",
+            )
         await store.delete_by_document(existing.id)
 
     async with session_scope() as session:

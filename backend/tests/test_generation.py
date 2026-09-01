@@ -243,3 +243,88 @@ async def test_cited_pages_exist_in_the_source_document() -> None:
                 )
             assert chunk.page_start <= min(q.page_refs)
             assert max(q.page_refs) <= chunk.page_end
+
+
+@pytest.mark.asyncio
+async def test_reingesting_a_document_discards_questions_derived_from_it() -> None:
+    """Regression: `questions.source_chunk_ids` is a JSON array, so the database cannot
+    enforce the reference. A `--force` re-ingest replaced every chunk with new UUIDs and
+    left 22 of 39 questions citing rows that no longer existed — a student clicking
+    through to the source would find nothing, which is exactly what I1 exists to prevent,
+    arriving after generation rather than during it."""
+
+    from recitai.db.models import Chunk, Course, Document, Question, Quiz
+    from recitai.db.session import session_scope
+    from recitai.ingestion.pipeline import _discard_derived_questions
+
+    await _services_or_skip()
+
+    async with session_scope() as session:
+        course = Course(name=f"orphan-probe-{uuid.uuid4()}")
+        session.add(course)
+        await session.flush()
+        document = Document(
+            course_id=course.id, filename="p.pptx", sha256="b" * 64, ingest_status="complete"
+        )
+        session.add(document)
+        await session.flush()
+        chunk = Chunk(
+            document_id=document.id,
+            course_id=course.id,
+            text="body",
+            page_start=1,
+            page_end=2,
+            section_path=["u", "t"],
+            token_count=200,
+        )
+        session.add(chunk)
+        await session.flush()
+        quiz = Quiz(course_id=course.id, scope={}, question_count=1, generation_meta={})
+        session.add(quiz)
+        await session.flush()
+        question = Question(
+            quiz_id=quiz.id,
+            stem="s",
+            options=[],
+            explanation="e",
+            source_chunk_ids=[str(chunk.id)],
+            page_refs=[1],
+        )
+        session.add(question)
+        await session.flush()
+        document_id, quiz_id, question_id, course_id = (
+            document.id,
+            quiz.id,
+            question.id,
+            course.id,
+        )
+
+    discarded = await _discard_derived_questions(document_id)
+    assert discarded == 1
+
+    async with session_scope() as session:
+        assert await session.get(Question, question_id) is None
+        assert await session.get(Quiz, quiz_id) is None, "an emptied quiz must go too"
+        # clean up
+        doomed = await session.get(Course, course_id)
+        if doomed is not None:
+            await session.delete(doomed)
+
+
+@pytest.mark.asyncio
+async def test_no_question_cites_a_chunk_that_does_not_exist() -> None:
+    """The invariant the above protects, asserted over whatever is currently stored."""
+    import sqlalchemy as sa
+
+    from recitai.db.models import Chunk, Question
+    from recitai.db.session import session_scope
+
+    await _services_or_skip()
+    async with session_scope() as session:
+        live = {str(c) for c in (await session.execute(sa.select(Chunk.id))).scalars().all()}
+        questions = list((await session.execute(sa.select(Question))).scalars().all())
+    if not questions:
+        pytest.skip("no generated questions yet")
+
+    dangling = [q for q in questions if not set(q.source_chunk_ids or []).issubset(live)]
+    assert not dangling, f"{len(dangling)}/{len(questions)} questions cite deleted chunks"
