@@ -29,7 +29,7 @@ questions and flashcards drawn only from it, with page-level citations.
 
 ## Deviations from the spec in force
 
-These are deliberate and recorded — do not "fix" them back.
+These are deliberate and recorded in `plan/DECISIONS.md` — do not "fix" them back.
 
 - **D-001** Postgres from Phase 0, not SQLite.
 - **D-002** Ollama runs natively in dev (no GPU passthrough on macOS); containerised in prod.
@@ -38,6 +38,26 @@ These are deliberate and recorded — do not "fix" them back.
   flattens every slide onto one page — never route `.pptx` through it.
 - **D-009** Slides merge greedily toward `TARGET_CHUNK_TOKENS`, not by shared heading.
   The spec's rule discards 87% of this corpus.
+- **D-010** `constants.py` is excluded from formatters and diff-tested against spec §4.1.
+- **D-011** A topic must group more than one chunk; the sampler redistributes shortfall.
+- **D-012** Clustering uses agglomerative partitioning, not HDBSCAN — HDBSCAN drops
+  outliers, which would leave chunks in no topic and invisible to the sampler.
+- **D-013** `GEN_MODEL` stays on llama3.1:8b. Qwen 2.5 14B was measured: better on quality
+  signals, 36% slower, and it did not fix the arithmetic failure it was tried for.
+- **D-016** No Celery and no Prometheus — a single-user demo cannot use the guarantee.
+  The concurrency story is therefore untested.
+
+## Things measured, so do not re-litigate them
+
+- **Prompt changes lost to deterministic checks, twice.** Sharpening the prompt cost 40%
+  of yield and made the target pattern *more* frequent; a 14B model cost 36% latency and
+  did not fix it; a regex fixed both at ~zero cost. Where a failure is mechanically
+  detectable, §5.1's free tier wins.
+- **Generation must be seeded to compare anything.** `--seed` drives the sampler *and* the
+  model. Before that, two runs with identical prompts differed 22 vs 18 persisted, so any
+  single-run A/B measured noise.
+- **`make eval` is the arbiter.** Coverage ≥90% is the number that proves the Path A
+  design; it currently reads 100%.
 
 ## Corpus
 
@@ -48,10 +68,14 @@ notes** and a ceiling of ~34 chunks.
 ## Commands
 
 ```
-make dev      # start qdrant + postgres (Ollama is native)
-make smoke    # Phase 0 gate: structured output + embedding against real models
-make lint     # ruff + black + mypy
-make test     # pytest
-make ingest F=...   # Phase 1
-make eval           # Phase 7
+make dev              # qdrant + postgres (Ollama runs natively — D-002)
+make migrate          # alembic upgrade head
+make smoke            # structured output + embedding against the real models
+make services         # assert the app can actually reach postgres and qdrant
+make ingest F=materials C="Course name"
+make api              # backend on :8000 (also serves a single-page client at /)
+make web              # Next.js frontend on :3000
+make eval             # the §15 metrics report
+make compare LOGS="a.txt b.txt"   # A/B two generation runs
+make lint && make test
 ```

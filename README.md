@@ -73,15 +73,17 @@ docker compose -f docker-compose.prod.yml up -d
 ## Results
 
 From `make eval` — see [docs/evaluation.md](docs/evaluation.md) for how each was measured.
+Coverage and retrieval are deterministic; the generation figures vary between runs, because
+the model is stochastic and the corpus is small.
 
 | Metric | Result |
 |---|---|
 | **Topic coverage over 5 consecutive quizzes** | **100%** (target ≥90%) |
-| Chunk coverage | 91% |
+| Chunk coverage | 89% |
 | recall@5 / MRR (Path B) | **1.00** / 0.911 over 35 hand-written pairs |
 | Questions carrying resolvable citations | **100%** |
 | Cited page inside its chunk and document | **100%** |
-| Validator rejection rate | ~47% of first-pass generations |
+| Validator rejection rate | ~50% of first-pass generations |
 | Questions judged student-ready | ~80% |
 | Generation latency | p50 17 s, p95 25 s per question |
 | Explanation time-to-first-token | **0.93 s** |

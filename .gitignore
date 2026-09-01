@@ -44,3 +44,10 @@ pgdata/
 .next/
 next-env.d.ts
 frontend/.next/
+*.tsbuildinfo
+
+# ---- Generated test fixtures ----
+# conftest regenerates the synthetic deck on every run, so committing it means a binary
+# diff on every test invocation. The expected content lives in conftest.py, visibly, next
+# to the assertions that depend on it.
+backend/tests/fixtures/synthetic_deck.pptx

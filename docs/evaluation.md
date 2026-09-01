@@ -12,7 +12,7 @@ of ~34 generatable chunks.
 | Metric | Result | Target |
 |---|---|---|
 | **Topic coverage over 5 consecutive quizzes** | **100%** (5/5) | ≥90% |
-| Chunk coverage | 91% (32/35) | — |
+| Chunk coverage | 89% (31/35) | — |
 | Topics per quiz | 5, 5, 5, 5, 5 | — |
 
 This is what the two-path design (ADR 0001) exists to guarantee. A similarity-based
@@ -28,8 +28,8 @@ result.
 
 | Metric | Result |
 |---|---|
-| recall@5 | **10/10 (1.00)** |
-| MRR | **0.920** (nine of ten at rank 1) |
+| recall@5 | **35/35 (1.00)** |
+| MRR | **0.911** |
 
 Over **35 hand-written query/source pairs** in `eval/golden_set.jsonl`, keyed on section
 path so they survive a re-ingest. §15 task 1 asks for 50; this corpus holds 35 chunks, so
@@ -40,9 +40,13 @@ runs a similarity search. They describe explanations, follow-ups, and scope reso
 
 ## Generation (§15 tasks 3, 4)
 
+Generation quality varies between runs — the model is stochastic and the corpus is small,
+so these are the figures from the run currently in the database rather than constants. Use
+`make eval` for the live numbers and `eval/compare_runs.py` to compare two runs properly.
+
 | Metric | Result |
 |---|---|
-| Validator pass rate | 53% |
+| Validator pass rate | ~50% |
 | Questions judged student-ready on read-through | ~80% (17–18 of 22 in the first full read) |
 | Explanations supported by their cited chunk | 83%, mean lexical overlap 48% |
 
@@ -50,9 +54,12 @@ runs a similarity search. They describe explanations, follow-ups, and scope reso
 
 | Check | Result |
 |---|---|
-| Questions carrying citations | 18/18 (100%) |
-| Citations resolvable to a live chunk | 18/18 (100%) |
-| Cited page inside both its chunk and its document | 18/18 (100%) |
+| Questions carrying citations | **100%** |
+| Citations resolvable to a live chunk | **100%** |
+| Cited page inside both its chunk and its document | **100%** |
+
+These three are asserted by `make eval` and fail the report if they ever drop below 100%,
+which is the point: I1 is not a target, it is a precondition for persisting anything.
 
 The spec's target of ≥40 student-ready questions from 50 is **not reachable on this
 corpus** and never was: 34 eligible chunks exist ([I-018]). The *rate* meets the implied
