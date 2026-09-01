@@ -3,7 +3,10 @@ materials/
 *.pptx
 *.ppt
 *.pdf
-!plan/*.pdf
+# ...but small synthetic fixtures MUST be committable: I-014's regression test needs a
+# multi-slide deck in the repo to prove slide attribution survives ingestion.
+!backend/tests/fixtures/
+!backend/tests/fixtures/**
 
 # ---- Secrets ----
 .env

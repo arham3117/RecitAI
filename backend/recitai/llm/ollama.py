@@ -8,6 +8,7 @@ at decode time rather than asked politely to return JSON.
 import json
 from collections.abc import AsyncIterator
 from types import TracebackType
+from typing import Any
 
 import httpx
 import structlog
@@ -67,7 +68,7 @@ class OllamaClient:
         *,
         system: str | None = None,
         temperature: float = GEN_TEMPERATURE,
-        schema: dict | None = None,
+        schema: dict[str, Any] | None = None,
     ) -> str:
         payload: dict[str, object] = {
             "model": self.gen_model,

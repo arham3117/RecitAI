@@ -73,7 +73,7 @@ warn_unreachable = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["pptx.*", "fitz.*", "pymupdf4llm.*", "qdrant_client.*", "fsrs.*"]
+module = ["pptx.*", "fitz.*", "pymupdf4llm.*", "qdrant_client.*", "fsrs.*", "asyncpg.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

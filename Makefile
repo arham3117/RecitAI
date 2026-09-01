@@ -13,7 +13,11 @@ install:  ## sync the backend virtualenv
 dev:  ## start qdrant + postgres (Ollama runs natively — D-002)
 	docker compose up -d
 	@echo "waiting for healthchecks..."
-	@until [ "$$(docker compose ps --format '{{.Health}}' | grep -c healthy)" = "2" ]; do sleep 2; done
+	@n=0; until [ "$$(docker compose ps --format '{{.Health}}' | grep -c healthy)" = "2" ]; do \
+		n=$$((n+1)); \
+		if [ $$n -gt 60 ]; then echo "services did not become healthy in 120s:"; docker compose ps; exit 1; fi; \
+		sleep 2; \
+	done
 	@docker compose ps
 	@cd $(BACKEND) && uv run python ../scripts/check_services.py
 
@@ -23,7 +27,7 @@ down:  ## stop services
 lint:  ## ruff + black --check + mypy
 	$(UV) ruff check $(BACKEND)
 	$(UV) black --config $(BACKEND)/pyproject.toml --check $(BACKEND) scripts
-	$(UV) mypy $(BACKEND)/recitai
+	$(UV) mypy --config-file $(BACKEND)/pyproject.toml $(BACKEND)/recitai $(BACKEND)/tests scripts
 
 format:  ## apply ruff --fix and black
 	$(UV) ruff check --fix $(BACKEND)

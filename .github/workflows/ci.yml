@@ -20,6 +20,6 @@ jobs:
       - name: Black
         run: uv run --project backend black --config backend/pyproject.toml --check backend scripts
       - name: Mypy
-        run: uv run --project backend mypy backend/recitai
+        run: uv run --project backend mypy --config-file backend/pyproject.toml backend/recitai backend/tests scripts
       - name: Pytest
         run: cd backend && uv run pytest -q

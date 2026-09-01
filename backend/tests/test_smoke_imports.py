@@ -1,6 +1,6 @@
 """Phase 0 has no application logic to test. These assert the contracts later phases
-depend on: the spec's constants are present and unmodified, and the client satisfies
-the protocol."""
+depend on: the spec's constants are present, and the client really does satisfy the
+LLMClient protocol."""
 
 from recitai import constants
 from recitai.llm.base import LLMClient
@@ -18,7 +18,20 @@ def test_constants_match_spec() -> None:
 
 
 def test_ollama_client_satisfies_protocol() -> None:
+    """Structural conformance is checked by mypy, not at runtime — this assignment is
+    the assertion, and it only means anything because `make lint` now type-checks
+    tests/ as well as recitai/ (it previously did not, which is how the `stream`
+    signature mismatch in I-021 went unnoticed)."""
     client: LLMClient = OllamaClient()
-    assert hasattr(client, "complete")
-    assert hasattr(client, "stream")
-    assert hasattr(client, "embed")
+    assert callable(client.complete)
+    assert callable(client.stream)
+    assert callable(client.embed)
+
+
+def test_stream_returns_an_async_iterator_not_a_coroutine() -> None:
+    """I-021 regression guard. `stream()` is an async generator: calling it yields an
+    async iterator directly. If it were ever rewritten as a plain `async def` returning
+    one, callers would need an extra `await` and every `async for` would break."""
+    import inspect
+
+    assert inspect.isasyncgenfunction(OllamaClient.stream)
