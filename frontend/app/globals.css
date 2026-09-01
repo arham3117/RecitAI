@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-paper text-ink font-sans text-body antialiased;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-paper-raised border border-line rounded-card p-6;
+  }
+  .btn {
+    @apply border border-line bg-paper-raised text-ink px-4 py-2 rounded-control
+           transition-colors hover:border-line-strong disabled:opacity-45
+           disabled:cursor-not-allowed disabled:hover:border-line;
+  }
+  .btn-primary {
+    @apply bg-ink text-white border-ink hover:bg-black hover:border-black;
+  }
+  .label {
+    @apply text-micro uppercase font-semibold text-ink-muted;
+  }
+  /* Skeletons are functional here, not decorative: local generation is slow enough that
+     the student needs to see the shape of what is coming (§14). */
+  .skeleton {
+    @apply animate-pulse rounded bg-line/70;
+  }
+}

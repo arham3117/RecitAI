@@ -55,8 +55,13 @@ make install && make migrate
 make smoke                                 # verifies the models actually work
 
 make ingest F=materials C="Your Course"    # a file or a directory
-make api                                   # then open http://localhost:8000
+
+make api                                   # backend on :8000
+make web                                   # frontend on :3000  (in a second terminal)
 ```
+
+The Next.js app is at **http://localhost:3000**. The API also serves a single-page client
+at http://localhost:8000 if you would rather not run Node.
 
 Hosted deployment is one command:
 

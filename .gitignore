@@ -39,3 +39,8 @@ pgdata/
 .DS_Store
 .idea/
 .vscode/
+
+# ---- Next.js ----
+.next/
+next-env.d.ts
+frontend/.next/
