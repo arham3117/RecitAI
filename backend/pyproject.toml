@@ -26,6 +26,9 @@ dependencies = [
     "rapidfuzz>=3.10",
     "fsrs>=6.3",           # spec says "py-fsrs"; PyPI distribution is "fsrs" — see plan/ISSUES.md I-019
     "numpy>=2.1",
+    # API (Phase 4) — omitted from the spec's §8 list, see plan/ISSUES.md I-005
+    "python-multipart>=0.0.20",   # file upload
+    "sse-starlette>=2.1",         # SSE streaming for follow-up explanations
     # Runtime
     "httpx>=0.27",          # D-007: direct to Ollama, no RAG framework
     "structlog>=24.4",
