@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     judge_prompt: str = "validator_judge_v1"
 
     log_level: str = "INFO"
+    #: "console" for development, "json" in production (§16 task 6).
+    log_format: str = "console"
 
     # An 8B model on a cold load can take well over a minute to return its first token.
     # A conventional short timeout here surfaces as an inscrutable failure, not slowness.

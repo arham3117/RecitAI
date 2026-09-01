@@ -23,3 +23,34 @@ jobs:
         run: uv run --project backend mypy --config-file backend/pyproject.toml backend/recitai backend/tests scripts
       - name: Pytest
         run: cd backend && uv run pytest -q
+
+      - name: Eval harness imports and parses the golden set
+        # A smoke check, not the full report: the real one needs Postgres, Qdrant and a
+        # local model. This catches the harness breaking without noticing until Phase 7
+        # is next run by hand.
+        run: |
+          cd backend
+          uv run python -c "
+          import json, pathlib, sys
+          sys.path.insert(0, '../eval')
+          import compare_runs, coverage_eval, generation_eval, retrieval_eval, run_eval
+          rows = [json.loads(l) for l in pathlib.Path('../eval/golden_set.jsonl').read_text().splitlines() if l.strip()]
+          assert len(rows) >= 30, f'golden set has only {len(rows)} pairs'
+          assert all(r['query'] and len(r['source_section']) == 2 for r in rows)
+          assert len({r['id'] for r in rows}) == len(rows), 'duplicate ids'
+          print(f'eval harness OK, {len(rows)} golden pairs')
+          "
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the production image
+        # §16 task 4: the deploy path must build on every change, not only when someone
+        # tries to deploy.
+        run: docker build -f backend/Dockerfile -t recitai-api:ci backend
+      - name: Image runs as a non-root user
+        run: |
+          test "$(docker run --rm --entrypoint id recitai-api:ci -u)" != "0" \
+            || { echo "image runs as root"; exit 1; }
+          echo "runs as uid $(docker run --rm --entrypoint id recitai-api:ci -u)"

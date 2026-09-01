@@ -8,6 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from recitai.api.routes import attempts, content, flashcards, quizzes
+from recitai.config import settings
+from recitai.logging import REQUEST_ID_HEADER, RequestIdMiddleware, configure
+
+configure(log_format=settings.log_format, level=settings.log_level)
 
 log = structlog.get_logger(__name__)
 
@@ -19,6 +23,9 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# Outermost so every other layer's logs carry the id (§16 task 6).
+app.add_middleware(RequestIdMiddleware)
+
 # The frontend is served separately in development (§14).
 app.add_middleware(
     CORSMiddleware,
@@ -26,6 +33,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=[REQUEST_ID_HEADER],
 )
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -49,7 +57,15 @@ async def unhandled(request: Request, exc: Exception) -> JSONResponse:
     """Structured errors (§12). An ingest failure or model timeout must say what failed,
     not return an opaque 500."""
     log.error("api.unhandled", path=request.url.path, error=str(exc))
+    from recitai.logging import request_id
+
     return JSONResponse(
         status_code=500,
-        content={"error": type(exc).__name__, "detail": str(exc)[:500], "path": request.url.path},
+        content={
+            "error": type(exc).__name__,
+            "detail": str(exc)[:500],
+            "path": request.url.path,
+            # Returned so a user reporting a failure can quote something that finds it.
+            "request_id": request_id.get(),
+        },
     )
