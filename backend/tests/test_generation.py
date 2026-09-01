@@ -390,3 +390,26 @@ def test_generation_meta_records_the_model_it_was_given() -> None:
 
     meta = GenerationRun(requested=10).as_meta("v1", "qwen2.5:14b-instruct-q4_K_M")
     assert meta["model"] == "qwen2.5:14b-instruct-q4_K_M"
+
+
+@pytest.mark.asyncio
+async def test_discard_runs_before_chunks_are_deleted() -> None:
+    """I-030 regression, second order.
+
+    The original fix called `_discard_derived_questions` *after* deleting the document's
+    chunks — so it looked them up, found none, and discarded nothing. Every derived
+    question survived with a dangling citation, which is the exact failure the fix was
+    written to prevent. It went unnoticed because no `--force` re-ingest ran between
+    writing it and the evaluation harness, and was caught by the invariant test rather
+    than by the fix's own test, which only exercised the function directly.
+    """
+    import inspect
+
+    from recitai.ingestion import pipeline
+
+    source = inspect.getsource(pipeline.ingest_file)
+    discard_at = source.index("_discard_derived_questions")
+    delete_at = source.index("delete(Chunk).where")
+    assert (
+        discard_at < delete_at
+    ), "questions must be discarded while their chunks still exist to be found by"

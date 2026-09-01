@@ -115,25 +115,23 @@ async def ingest_file(
         existing = await session.scalar(
             select(Document).where(Document.course_id == course_id, Document.sha256 == digest)
         )
-        if existing and not force:
-            if existing.ingest_status == "complete":
-                return IngestResult(
-                    document_id=existing.id,
-                    filename=path.name,
-                    status="skipped",
-                    page_count=existing.page_count or 0,
-                    skipped_reason="identical file already ingested",
-                )
-            # A previous run failed or died midway; clear it and start over rather than
-            # leaving a half-populated document in place.
-            await session.execute(delete(Chunk).where(Chunk.document_id == existing.id))
-            await session.delete(existing)
-        elif existing and force:
-            await session.execute(delete(Chunk).where(Chunk.document_id == existing.id))
-            await session.delete(existing)
+        if existing and not force and existing.ingest_status == "complete":
+            return IngestResult(
+                document_id=existing.id,
+                filename=path.name,
+                status="skipped",
+                page_count=existing.page_count or 0,
+                skipped_reason="identical file already ingested",
+            )
+        existing_id = existing.id if existing else None
 
-    if existing is not None:
-        orphaned = await _discard_derived_questions(existing.id)
+    if existing_id is not None:
+        # Discard first: `_discard_derived_questions` finds questions by looking up the
+        # document's chunks, so deleting the chunks before calling it leaves nothing to
+        # match and every derived question survives with a dangling citation. That is
+        # exactly what I-030 was written to prevent, and the original fix ran in the wrong
+        # order — caught by the invariant test on the first --force re-ingest after it.
+        orphaned = await _discard_derived_questions(existing_id)
         if orphaned:
             log.warning(
                 "ingest.discarded_stale_questions",
@@ -141,7 +139,12 @@ async def ingest_file(
                 questions=orphaned,
                 reason="their source chunks were replaced by this re-ingest",
             )
-        await store.delete_by_document(existing.id)
+        async with session_scope() as session:
+            await session.execute(delete(Chunk).where(Chunk.document_id == existing_id))
+            doomed = await session.get(Document, existing_id)
+            if doomed is not None:
+                await session.delete(doomed)
+        await store.delete_by_document(existing_id)
 
     async with session_scope() as session:
         document = Document(
