@@ -145,3 +145,101 @@ def test_cosine_bounds() -> None:
     assert cosine([1.0, 0.0], [1.0, 0.0]) == pytest.approx(1.0)
     assert cosine([1.0, 0.0], [0.0, 1.0]) == pytest.approx(0.0)
     assert cosine([0.0, 0.0], [1.0, 0.0]) == 0.0
+
+
+# --------------------------------------------------- persisted-content invariants ----
+
+
+async def _services_or_skip() -> None:
+    import asyncpg
+
+    from recitai.db.session import engine
+
+    try:
+        async with engine.connect():
+            return
+    except (asyncpg.CannotConnectNowError, ConnectionRefusedError, OSError) as exc:
+        pytest.skip(f"postgres not reachable: {exc}")
+
+
+@pytest.mark.asyncio
+async def test_every_persisted_question_carries_citations() -> None:
+    """§11 VERIFY, stated as an assertion: every persisted question must have non-empty
+    `source_chunk_ids` and `page_refs`. Invariant I1 — content that cannot cite its source
+    is not persisted."""
+    import sqlalchemy as sa
+
+    from recitai.db.models import Question
+    from recitai.db.session import session_scope
+
+    await _services_or_skip()
+    async with session_scope() as session:
+        questions = list((await session.execute(sa.select(Question))).scalars().all())
+    if not questions:
+        pytest.skip("no generated questions yet")
+
+    uncited = [q for q in questions if not q.source_chunk_ids or not q.page_refs]
+    assert not uncited, f"{len(uncited)}/{len(questions)} persisted questions lack citations"
+
+
+@pytest.mark.asyncio
+async def test_no_malformed_question_reaches_the_database() -> None:
+    """Every stored row must still parse as the schema that produced it, and every
+    distractor must carry its rationale."""
+    import sqlalchemy as sa
+
+    from recitai.db.models import Question
+    from recitai.db.session import session_scope
+    from recitai.generation.schemas import GeneratedQuestion
+
+    await _services_or_skip()
+    async with session_scope() as session:
+        questions = list((await session.execute(sa.select(Question))).scalars().all())
+    if not questions:
+        pytest.skip("no generated questions yet")
+
+    for row in questions:
+        model = GeneratedQuestion.model_validate(
+            {
+                "stem": row.stem,
+                "options": row.options,
+                "explanation": row.explanation,
+                "difficulty": row.difficulty,
+            }
+        )
+        assert len(model.options) == 4
+        assert sum(o.is_correct for o in model.options) == 1
+        for distractor in model.distractors:
+            assert (distractor.why_wrong or "").strip(), f"{row.id}: distractor has no rationale"
+
+
+@pytest.mark.asyncio
+async def test_cited_pages_exist_in_the_source_document() -> None:
+    """A citation naming a page the document does not have is the failure mode I1 exists
+    to prevent — it teaches the student to distrust every other citation."""
+    import sqlalchemy as sa
+
+    from recitai.db.models import Chunk, Document, Question
+    from recitai.db.session import session_scope
+
+    await _services_or_skip()
+    async with session_scope() as session:
+        questions = list((await session.execute(sa.select(Question))).scalars().all())
+        if not questions:
+            pytest.skip("no generated questions yet")
+        chunks = {str(c.id): c for c in (await session.execute(sa.select(Chunk))).scalars().all()}
+        docs = {d.id: d for d in (await session.execute(sa.select(Document))).scalars().all()}
+
+    for q in questions:
+        for chunk_id in q.source_chunk_ids:
+            chunk = chunks.get(chunk_id)
+            assert chunk is not None, f"question {q.id} cites unknown chunk {chunk_id}"
+            document = docs[chunk.document_id]
+            assert document.page_count is not None
+            for page in q.page_refs:
+                assert 1 <= page <= document.page_count, (
+                    f"question {q.id} cites page {page} of {document.filename}, "
+                    f"which has {document.page_count} pages"
+                )
+            assert chunk.page_start <= min(q.page_refs)
+            assert max(q.page_refs) <= chunk.page_end
