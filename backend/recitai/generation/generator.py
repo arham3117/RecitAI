@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 import structlog
 from pydantic import ValidationError
 
+from recitai.config import settings
 from recitai.constants import GEN_MODEL, GEN_TEMPERATURE, MAX_REGEN_ATTEMPTS
 from recitai.generation.prompts import load
 from recitai.generation.schemas import (
@@ -28,7 +29,6 @@ from recitai.retrieval.sampler import ChunkRef
 
 log = structlog.get_logger(__name__)
 
-QUESTION_PROMPT = "question_generation_v1"
 FLASHCARD_PROMPT = "flashcard_generation_v1"
 
 
@@ -73,7 +73,7 @@ async def generate_question(
     run_judge_checks: bool = True,
 ) -> GenerationOutcome:
     """Generate one validated question from one chunk, retrying per §5.3."""
-    prompt = load(QUESTION_PROMPT)
+    prompt = load(settings.question_prompt)
     started = time.perf_counter()
     outcome = GenerationOutcome(
         chunk=chunk, question=None, report=None, prompt_version=prompt.version

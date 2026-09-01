@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     gen_model: str = constants.GEN_MODEL
     embedding_model: str = constants.EMBEDDING_MODEL
 
+    # Prompt selection is configuration, not code: §15 task 7 A/B-tests two prompt
+    # versions against the harness, and §6 versions prompts by filename rather than
+    # editing them in place.
+    question_prompt: str = "question_generation_v2"
+    judge_prompt: str = "validator_judge_v2"
+
     log_level: str = "INFO"
 
     # An 8B model on a cold load can take well over a minute to return its first token.

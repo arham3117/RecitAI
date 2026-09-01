@@ -13,6 +13,7 @@ import time
 import numpy as np
 import structlog
 
+from recitai.config import settings
 from recitai.constants import (
     BANNED_PHRASES,
     MAX_CORRECT_LENGTH_RATIO,
@@ -163,7 +164,7 @@ async def run_judge(
     question: GeneratedQuestion, chunk_text: str, client: LLMClient
 ) -> JudgeVerdict:
     """§5.2 — grounded, unique, plausible, in one call at temperature 0."""
-    prompt = load("validator_judge_v1")
+    prompt = load(settings.judge_prompt)
     by_id = {o.id: o.text for o in question.options}
     rendered = prompt.render(
         chunk_text=chunk_text,

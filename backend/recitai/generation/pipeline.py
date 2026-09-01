@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 import structlog
 from sqlalchemy import select
 
+from recitai.config import settings
 from recitai.constants import GEN_MODEL
 from recitai.db.models import Course, Flashcard, Question, Quiz
 from recitai.db.session import session_scope
@@ -62,6 +63,8 @@ class GenerationRun:
     def as_meta(self, prompt_version: str) -> dict[str, object]:
         return {
             "model": GEN_MODEL,
+            "question_prompt": settings.question_prompt,
+            "judge_prompt": settings.judge_prompt,
             "prompt_version": prompt_version,
             "requested": self.requested,
             "persisted": self.persisted,

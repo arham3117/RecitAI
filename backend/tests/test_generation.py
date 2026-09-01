@@ -328,3 +328,42 @@ async def test_no_question_cites_a_chunk_that_does_not_exist() -> None:
 
     dangling = [q for q in questions if not set(q.source_chunk_ids or []).issubset(live)]
     assert not dangling, f"{len(dangling)}/{len(questions)} questions cite deleted chunks"
+
+
+# ------------------------------------------------------------ prompt versioning ----
+
+
+def test_v2_prompts_are_drop_in_replacements_for_v1() -> None:
+    """§6 versions prompts by filename rather than editing in place, so an A/B in Phase 7
+    can attribute a quality change to the prompt that caused it. A v2 that needs different
+    placeholders is not a swap, it is a rewrite of the call site."""
+    for base in ("question_generation", "validator_judge"):
+        v1, v2 = load(f"{base}_v1"), load(f"{base}_v2")
+        assert v1.placeholders() == v2.placeholders()
+        assert v2.version == "v2"
+
+
+def test_v2_question_prompt_addresses_the_recorded_failures() -> None:
+    """I-028: the model invented a "primary" ranking the passage did not state, and wrote
+    distractors that the passage also supported. I-029: it asked for a computed count and
+    got the arithmetic wrong."""
+    text = load("question_generation_v2").system.lower()
+    assert "primary" in text and "rank" in text, "I-028: no rule against an invented ranking"
+    assert "also be supported" in text or "also supported" in text, "I-028: no self-check"
+    assert "compute" in text, "I-029: no rule against asking for a computed quantity"
+
+
+def test_v2_judge_checks_distractors_against_the_passage() -> None:
+    text = load("validator_judge_v2").user_template.lower()
+    assert "each of the three distractors" in text
+    assert "does not state outright" in text, "I-029: judge must reject unstated numbers"
+
+
+def test_prompt_selection_is_configuration() -> None:
+    """Phase 7 §15 task 7 A/B-tests prompt versions; that must not be a code edit."""
+    from recitai.config import settings
+
+    assert settings.question_prompt.startswith("question_generation_v")
+    assert settings.judge_prompt.startswith("validator_judge_v")
+    load(settings.question_prompt)
+    load(settings.judge_prompt)
