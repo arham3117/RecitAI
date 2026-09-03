@@ -51,11 +51,22 @@ export type QuizSummary = {
   generation_meta: Record<string, unknown>;
 };
 
+export type Slide = {
+  page: number;
+  heading: string | null;
+  text: string;
+  image_url: string | null;
+};
+
 export type Source = {
   text: string;
   page: number;
+  page_end: number;
+  slides: Slide[];
   section_path: string[];
   document_name: string;
+  /** "pdf" | "companion-pdf" | "libreoffice" | "unavailable" */
+  images: string;
 };
 
 /** §12's core payload: everything the explanation panel needs, in one response. */

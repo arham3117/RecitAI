@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { api } from "@/lib/api";
-import type { AnswerResult, PublicQuestion } from "@/lib/types";
+import type { AnswerResult, PublicQuestion, Source } from "@/lib/types";
 import { SkeletonLines } from "./Skeleton";
 
 /**
@@ -13,6 +13,57 @@ import { SkeletonLines } from "./Skeleton";
  * The one thing that does stream is the optional follow-up, which the student chose to
  * wait for.
  */
+/** The passage a question came from usually spans several merged slides, so it is shown
+ *  slide by slide — with a picture of each where one can be produced. Text says what a
+ *  slide states; only the image shows a diagram, and 12% of slides here are diagram-only. */
+function SourcePanel({ source }: { source: Source }) {
+  const range =
+    source.page === source.page_end
+      ? `slide ${source.page}`
+      : `slides ${source.page}–${source.page_end}`;
+
+  return (
+    <div className="mt-4">
+      <p className="mb-2 text-small text-ink-muted">
+        From <b className="text-ink">{source.document_name}</b>, {range}
+        {source.section_path.length > 0 && <> — {source.section_path.join(" › ")}</>}
+      </p>
+
+      <div className="space-y-3">
+        {source.slides.map((slide, i) => (
+          <figure key={i} className="overflow-hidden rounded-control border border-line bg-paper">
+            {slide.image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={slide.image_url}
+                alt={`Slide ${slide.page}${slide.heading ? `: ${slide.heading}` : ""}`}
+                className="block w-full"
+                loading="lazy"
+              />
+            ) : (
+              <div className="px-4 py-3">
+                {slide.heading && <p className="mb-1 font-medium">{slide.heading}</p>}
+                <p className="whitespace-pre-wrap text-small text-ink-muted">{slide.text}</p>
+              </div>
+            )}
+            <figcaption className="border-t border-line px-4 py-1.5 text-small text-ink-muted">
+              slide {slide.page}
+              {slide.heading && !slide.image_url ? "" : slide.heading ? ` — ${slide.heading}` : ""}
+            </figcaption>
+          </figure>
+        ))}
+      </div>
+
+      {source.images === "unavailable" && (
+        <p className="mt-2 text-small text-ink-faint">
+          Showing the extracted text. To see the actual slides, save a PDF copy of the deck
+          next to it (File → Save as PDF), or install LibreOffice.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function ExplanationPanel({
   result,
   question,
@@ -48,20 +99,7 @@ export function ExplanationPanel({
       </p>
       <p>{result.explanation}</p>
 
-      {result.source && (
-        <>
-          <blockquote className="mt-4 max-h-52 overflow-auto whitespace-pre-wrap rounded-r-control border-l-[3px] border-line bg-paper px-4 py-3 text-small">
-            {result.source.text}
-          </blockquote>
-          <p className="mt-2 text-small text-ink-muted">
-            From <b className="text-ink">{result.source.document_name}</b>, slide{" "}
-            <b className="text-ink">{result.source.page}</b>
-            {result.source.section_path.length > 0 && (
-              <> — {result.source.section_path.join(" › ")}</>
-            )}
-          </p>
-        </>
-      )}
+      {result.source && <SourcePanel source={result.source} />}
 
       <div className="mt-5 flex flex-wrap items-center gap-2.5">
         <button

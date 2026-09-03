@@ -70,6 +70,23 @@ cp .env.example .env    # set POSTGRES_PASSWORD
 docker compose -f docker-compose.prod.yml up -d
 ```
 
+## Seeing the actual slide
+
+When you get a question wrong, the panel shows the slide it came from — not just the
+extracted text. Text says what a slide *states*; only the picture shows a table's layout or
+a diagram, and 12% of slides in the test corpus are diagram-only.
+
+Three ways to get one, tried in order:
+
+| | Needs | |
+|---|---|---|
+| A PDF beside the deck | one "Save as PDF" per file | `2-Background.pdf` next to `2-Background.pptx` |
+| LibreOffice | `brew install --cask libreoffice` | converts automatically, cached |
+| Neither | nothing | falls back to text, and says why |
+
+Text extraction never goes through a PDF — that would lose slide numbers, headings and
+speaker notes ([D-008](plan/DECISIONS.md)). The PDF is only ever used to draw a picture.
+
 ## Results
 
 From `make eval` — see [docs/evaluation.md](docs/evaluation.md) for how each was measured.

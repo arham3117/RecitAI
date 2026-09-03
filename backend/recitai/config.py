@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     question_prompt: str = "question_generation_v1"
     judge_prompt: str = "validator_judge_v1"
 
+    #: Where the original files live, so the explanation panel can show a real slide.
+    #: Ingestion does not keep uploads, so this is how a deck is found again.
+    materials_dir: str = "materials"
+
     log_level: str = "INFO"
     #: "console" for development, "json" in production (§16 task 6).
     log_format: str = "console"

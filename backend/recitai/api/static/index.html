@@ -249,8 +249,7 @@ function panel(r,q){
     <div class="card" style="margin-top:16px">
       <p class="verdict ${r.is_correct?"ok":"no"}">${r.is_correct?"Correct":"Not quite"}</p>
       <p style="margin:0">${esc(r.explanation)}</p>
-      ${s?`<blockquote>${esc(s.text)}</blockquote>
-        <p class="cite">From <b>${esc(s.document_name)}</b>, slide <b>${s.page}</b> — ${esc(s.section_path.join(" › "))}</p>`:""}
+      ${s?sourceBlock(s):""}
       <div class="row" style="margin-top:16px">
         <button id="ask">Explain differently</button>
         <button class="primary" id="next">${S.i+1<S.quiz.questions.length?"Next question":"See results"}</button>
@@ -260,6 +259,27 @@ function panel(r,q){
   document.getElementById("next").onclick=next;
   document.getElementById("ask").onclick=()=>followup(q.id);
 }
+// The passage usually spans several merged slides, so show them one by one — with a
+// picture of each where one can be produced. Text says what a slide states; only the
+// image shows a diagram, and 12% of slides here are diagram-only.
+function sourceBlock(s){
+  const range = s.page===s.page_end ? `slide <b>${s.page}</b>` : `slides <b>${s.page}–${s.page_end}</b>`;
+  const slides = (s.slides||[]).map(sl=>`
+    <figure style="margin:0 0 10px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--bg)">
+      ${sl.image_url
+        ? `<img src="${sl.image_url}" alt="Slide ${sl.page}" style="display:block;width:100%">`
+        : `<div style="padding:11px 14px">${sl.heading?`<b>${esc(sl.heading)}</b><br>`:""}
+             <span style="font-size:13px;color:var(--muted);white-space:pre-wrap">${esc(sl.text)}</span></div>`}
+      <figcaption style="border-top:1px solid var(--line);padding:5px 14px;font-size:12px;color:var(--muted)">
+        slide ${sl.page}${sl.heading?` — ${esc(sl.heading)}`:""}</figcaption>
+    </figure>`).join("");
+  const note = s.images==="unavailable"
+    ? `<p class="cite">Showing extracted text. For the actual slides, save a PDF beside the deck or install LibreOffice.</p>`
+    : "";
+  return `<p class="cite" style="margin-top:12px">From <b>${esc(s.document_name)}</b>, ${range} — ${esc(s.section_path.join(" › "))}</p>
+          <div style="margin-top:8px">${slides}</div>${note}`;
+}
+
 async function followup(qid){
   const box=document.getElementById("stream");box.hidden=false;box.textContent="";
   document.getElementById("ask").disabled=true;

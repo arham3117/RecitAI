@@ -88,6 +88,12 @@ plugins = ["pydantic.mypy"]
 module = ["pptx.*", "fitz.*", "pymupdf4llm.*", "qdrant_client.*", "fsrs.*", "asyncpg.*", "sklearn.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+# pymupdf ships py.typed but leaves its constructors untyped, so strict mode rejects
+# every call into it. Untyped calls are allowed for this module only.
+module = ["recitai.ingestion.slide_images"]
+disallow_untyped_calls = false
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
