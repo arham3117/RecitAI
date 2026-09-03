@@ -70,6 +70,20 @@ cp .env.example .env    # set POSTGRES_PASSWORD
 docker compose -f docker-compose.prod.yml up -d
 ```
 
+## Asking questions about the material
+
+Alongside quizzes there is a chat box: ask anything about your own slides and get an
+answer built only from them, with the passages it used shown first — slide images
+included — so every claim can be checked.
+
+Asked something the material does not cover, it says so and names what it *does* cover.
+It never falls back on general knowledge, which for a study tool is the difference between
+useful and dangerous.
+
+This is a **v2 feature** ([D-018](plan/DECISIONS.md)); the spec lists chat mode as out of
+scope for v1, and it was added after all nine phases were complete. It runs on Path B, so
+it does not touch how quizzes are built.
+
 ## Seeing the actual slide
 
 When you get a question wrong, the panel shows the slide it came from — not just the

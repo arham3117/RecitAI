@@ -7,6 +7,7 @@ source passage with its page. Anything missing here becomes a spinner at exactly
 moment the student is most likely to give up.
 """
 
+import json
 import re
 import uuid
 from collections.abc import AsyncIterator
@@ -15,20 +16,34 @@ from pathlib import Path
 
 import structlog
 from fastapi import APIRouter, HTTPException, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sse_starlette.sse import EventSourceResponse
 
 from recitai.config import settings
-from recitai.db.models import Answer, Attempt, Chunk, Document, Question, TopicMastery
+from recitai.db.models import (
+    Answer,
+    Attempt,
+    Chunk,
+    Course,
+    Document,
+    Question,
+    TopicMastery,
+)
 from recitai.db.session import session_scope
 from recitai.generation.prompts import load
 from recitai.ingestion.slide_images import availability, render_slide
 from recitai.learning.mastery import promote_missed_question, update_mastery
 from recitai.llm.ollama import OllamaClient
+from recitai.retrieval.search import search
+from recitai.retrieval.vector_store import VectorStore
 
 log = structlog.get_logger(__name__)
 router = APIRouter(tags=["attempts"])
+
+#: How many passages a chat answer is grounded in. Enough for a question spanning two
+#: slides, few enough to fit an 8B model's context alongside the answer it has to write.
+CHAT_PASSAGES = 5
 
 
 #: The repository root, derived from this file rather than from the working directory —
@@ -291,6 +306,107 @@ async def attempt_results(attempt_id: uuid.UUID) -> dict[str, object]:
             "score": round(score, 3),
             "per_topic": by_topic,
         }
+
+
+class ChatIn(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+    #: Restrict to selected topics; empty means the whole course.
+    topic_ids: list[uuid.UUID] = Field(default_factory=list)
+
+
+@router.post("/courses/{course_id}/chat")
+async def chat(course_id: uuid.UUID, payload: ChatIn) -> EventSourceResponse:
+    """Ask a question about the course material (v2 — see plan/DECISIONS.md D-018).
+
+    This is **Path B**: a real query with semantics, which is exactly what §3.1 reserves
+    similarity search for. It is not Path A, and nothing here influences what a student is
+    quizzed on.
+
+    Invariant I2 holds — the model is given passages and told it has no other knowledge.
+    I1 holds too: the passages are sent to the client *before* the answer starts, with
+    their slides, so a claim can be traced the moment it appears.
+    """
+    client, store = OllamaClient(), VectorStore()
+    try:
+        hits = await search(
+            payload.message,
+            client,
+            store,
+            course_id=course_id,
+            topic_ids=list(payload.topic_ids) or None,
+            limit=CHAT_PASSAGES,
+        )
+    finally:
+        await store.aclose()
+
+    async with session_scope() as session:
+        course = await session.get(Course, course_id)
+        course_name = course.name if course else "this course"
+        chunks: list[Chunk] = []
+        for hit in hits:
+            chunk = await session.get(Chunk, hit.chunk_id)
+            if chunk is not None:
+                chunks.append(chunk)
+        documents: dict[uuid.UUID, Document | None] = {}
+        for chunk in chunks:
+            if chunk.document_id not in documents:
+                documents[chunk.document_id] = await session.get(Document, chunk.document_id)
+
+    sources: list[dict[str, object]] = []
+    for index, chunk in enumerate(chunks):
+        document = documents.get(chunk.document_id)
+        image_url = None
+        if document is not None:
+            path = _material_path(document.filename)
+            if path is not None and availability(path) != "unavailable":
+                image_url = f"/api/documents/{document.id}/slides/{chunk.page_start}.png"
+        sources.append(
+            {
+                "n": index + 1,
+                "page_start": chunk.page_start,
+                "page_end": chunk.page_end,
+                "section_path": list(chunk.section_path),
+                "document_name": document.filename if document else "unknown",
+                "image_url": image_url,
+            }
+        )
+
+    if not chunks:
+
+        async def empty() -> AsyncIterator[dict[str, str]]:
+            yield {"event": "sources", "data": json.dumps([])}
+            yield {
+                "data": (
+                    "There is nothing in this course's material about that. Try rephrasing, "
+                    "or ask about one of the topics in the sidebar."
+                )
+            }
+            yield {"event": "done", "data": ""}
+
+        await client.aclose()
+        return EventSourceResponse(empty())
+
+    prompt = load("chat_answer_v1")
+    passages = "\n\n".join(
+        f"[{i + 1}] (slide {c.page_start}"
+        + (f"-{c.page_end}" if c.page_end != c.page_start else "")
+        + f", {' > '.join(c.section_path)})\n{c.text}"
+        for i, c in enumerate(chunks)
+    )
+    rendered = prompt.render(course_name=course_name, passages=passages, question=payload.message)
+
+    async def stream() -> AsyncIterator[dict[str, str]]:
+        try:
+            # Sources first: the student sees what the answer will be built from before a
+            # word of it arrives, which is the point of citing at all.
+            yield {"event": "sources", "data": json.dumps(sources)}
+            async for piece in client.stream(rendered, system=prompt.system):
+                yield {"data": piece}
+            yield {"event": "done", "data": ""}
+        finally:
+            await client.aclose()
+
+    return EventSourceResponse(stream())
 
 
 class FollowUpIn(BaseModel):

@@ -21,6 +21,16 @@ def client() -> httpx.Client:
     return httpx.Client(base_url=BASE, timeout=30)
 
 
+def _sse_data(line: str) -> str:
+    """The payload of one SSE line.
+
+    Exactly one space after "data:" is protocol framing; any further whitespace is
+    content. Stripping it all glues streamed tokens together into one long word.
+    """
+    payload = line[5:]
+    return payload[1:] if payload.startswith(" ") else payload
+
+
 def _db_or_skip(client: httpx.Client) -> None:
     try:
         if client.get("/api/health").status_code != 200:
@@ -105,3 +115,73 @@ def test_missing_resources_are_404_not_500(client: httpx.Client) -> None:
     missing = uuid.uuid4()
     assert client.get(f"/api/quizzes/{missing}").status_code == 404
     assert client.get(f"/api/jobs/{missing}").status_code == 404
+
+
+def test_chat_answers_only_from_the_material(client: httpx.Client) -> None:
+    """Invariant I2, over the wire. A tutor that answers a question the material does not
+    cover is worse than one that declines: the student cannot tell which answers came from
+    their slides and which the model invented."""
+    _db_or_skip(client)
+    courses = client.get("/api/courses").json()
+    if not courses:
+        pytest.skip("no ingested course")
+
+    with client.stream(
+        "POST",
+        f"/api/courses/{courses[0]['id']}/chat",
+        json={"message": "Who won the 2022 FIFA World Cup?"},
+        timeout=180,
+    ) as response:
+        assert response.status_code == 200
+        body = "".join(
+            _sse_data(line)
+            for line in response.iter_lines()
+            if line.startswith("data:") and not _sse_data(line).lstrip().startswith("[")
+        ).lower()
+
+    assert body.strip(), "the tutor must say something"
+    declined = any(
+        phrase in body
+        for phrase in (
+            "no information",
+            "not mention",
+            "no mention",
+            "do not cover",
+            "does not cover",
+            "can't help",
+            "cannot help",
+        )
+    )
+    assert declined, f"expected a refusal grounded in the passages, got: {body[:200]}"
+    assert "argentina" not in body, "answered from world knowledge instead of the material"
+
+
+def test_chat_cites_the_passages_it_used(client: httpx.Client) -> None:
+    """I1: the passages arrive before the answer, so a claim can be traced the moment it
+    appears rather than after the fact."""
+    _db_or_skip(client)
+    courses = client.get("/api/courses").json()
+    if not courses:
+        pytest.skip("no ingested course")
+
+    import json as _json
+
+    sources = None
+    with client.stream(
+        "POST",
+        f"/api/courses/{courses[0]['id']}/chat",
+        json={"message": "What is vertical fragmentation?"},
+        timeout=180,
+    ) as response:
+        for line in response.iter_lines():
+            if line.startswith("data:"):
+                payload = _sse_data(line).lstrip()
+                if payload.startswith("["):
+                    sources = _json.loads(payload)
+                    break
+
+    assert sources, "the answer must arrive with the passages it was built from"
+    for source in sources:
+        assert source["page_start"] >= 1
+        assert source["document_name"]
+        assert source["page_end"] >= source["page_start"]

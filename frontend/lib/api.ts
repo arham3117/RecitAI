@@ -1,5 +1,6 @@
 import type {
   AnswerResult,
+  ChatSource,
   AttemptResults,
   Course,
   DeckStats,
@@ -64,6 +65,47 @@ export const api = {
       body: JSON.stringify({ rating }),
     }),
 
+  /** Ask about the material. Yields the cited passages first, then the answer as it is
+   *  written — the citations arrive before a word of the answer, so a claim can be traced
+   *  the moment it appears. */
+  async *chat(
+    courseId: string,
+    message: string,
+    topicIds: string[] = [],
+  ): AsyncGenerator<{ sources?: ChatSource[]; text?: string }> {
+    const res = await fetch(`/api/courses/${courseId}/chat`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ message, topic_ids: topicIds }),
+    });
+    if (!res.body) return;
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let sawSources = false;
+    let buffer = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).replace(/^ /, "");
+        if (!sawSources && payload.startsWith("[")) {
+          sawSources = true;
+          try {
+            yield { sources: JSON.parse(payload) as ChatSource[] };
+          } catch {
+            /* a passage list that will not parse is not worth failing the answer over */
+          }
+          continue;
+        }
+        yield { text: payload };
+      }
+    }
+  },
+
   /** SSE follow-up (§12). Yields text as it arrives rather than buffering — on a local
    *  model the difference between 0.9s and 8s to first visible word. */
   async *explain(questionId: string, followup: string): AsyncGenerator<string> {
@@ -79,7 +121,8 @@ export const api = {
       const { done, value } = await reader.read();
       if (done) break;
       for (const line of decoder.decode(value, { stream: true }).split("\n")) {
-        if (line.startsWith("data:")) yield line.slice(5);
+        // Exactly one space after "data:" is framing; anything more is content.
+        if (line.startsWith("data:")) yield line.slice(5).replace(/^ /, "");
       }
     }
   },

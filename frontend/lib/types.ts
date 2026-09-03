@@ -107,6 +107,22 @@ export type DeckStats = {
   due: number;
 };
 
+export type ChatSource = {
+  n: number;
+  page_start: number;
+  page_end: number;
+  section_path: string[];
+  document_name: string;
+  image_url: string | null;
+};
+
+export type ChatTurn = {
+  role: "you" | "tutor";
+  text: string;
+  sources?: ChatSource[];
+  streaming?: boolean;
+};
+
 export type AttemptResults = {
   attempt_id: string;
   answered: number;

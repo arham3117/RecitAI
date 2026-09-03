@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Chat } from "@/components/Chat";
 import { FlashcardReviewer } from "@/components/FlashcardReviewer";
-import { Hero } from "@/components/Hero";
+import { QuizRail } from "@/components/QuizRail";
 import { QuizRunner } from "@/components/QuizRunner";
 import { Sidebar } from "@/components/Sidebar";
 import { SkeletonQuestion } from "@/components/Skeleton";
@@ -153,54 +154,37 @@ export default function Page() {
         onReview={() => void review()}
       />
 
-      <main className="max-w-canvas px-10 py-9">
-        {view.name === "library" && (
-          <>
-            <Hero
-              course={course}
-              selectedCount={selected.size}
-              onGenerate={(n, q) => void generate(n, q)}
-              onUploaded={() => void refresh()}
-              busy={false}
+      <main className="max-w-[1180px] px-10 py-9">
+        {view.name === "library" && course && (
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_268px]">
+            <Chat
+              courseId={course.id}
+              topicIds={[...selected]}
+              scopeLabel={
+                selected.size
+                  ? `${selected.size} selected topic${selected.size > 1 ? "s" : ""}`
+                  : "your course material"
+              }
             />
-            {loading ? (
-              <div className="mt-8">
-                <SkeletonQuestion />
-              </div>
-            ) : (
-              quizzes.length > 0 && (
-                <>
-                  <h2 className="label mt-8 mb-2">Ready now</h2>
-                  <section className="card flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <b>{quizzes[0].question_count} questions</b>
-                      <div className="text-small text-ink-muted">
-                        generated {new Date(quizzes[0].created_at).toLocaleString()}
-                        {typeof quizzes[0].generation_meta?.validator_pass_rate === "number" && (
-                          <>
-                            {" · validator pass rate "}
-                            {Math.round(
-                              (quizzes[0].generation_meta.validator_pass_rate as number) * 100,
-                            )}
-                            %
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      className="btn btn-primary"
-                      onClick={() => void startQuiz(quizzes[0].id)}
-                    >
-                      Start
-                    </button>
-                  </section>
-                </>
-              )
-            )}
-            <p className="mt-8 text-small text-ink-muted">
-              RecitAI can make mistakes. Verify important facts against the source.
-            </p>
-          </>
+            <QuizRail
+              course={course}
+              quizzes={quizzes}
+              deck={deck}
+              selectedCount={selected.size}
+              busy={false}
+              onGenerate={(n) => void generate(n, "")}
+              onStart={(id) => void startQuiz(id)}
+              onReview={() => void review()}
+              onUploaded={() => void refresh()}
+            />
+          </div>
+        )}
+
+        {view.name === "library" && !course && (
+          <div className="pt-4">
+            <div className="skeleton h-8 w-72" />
+            <div className="skeleton mt-3 h-4 w-96" />
+          </div>
         )}
 
         {view.name === "generating" && (
