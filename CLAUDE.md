@@ -14,6 +14,7 @@ questions and flashcards drawn only from it, with page-level citations.
 | `plan/DECISIONS.md` | Every decision taken (`D-00N`), including deviations from the spec. |
 | `plan/ISSUES.md` | Spec gaps, blockers, and measured problems (`I-00N`). |
 | `docs/adr/` | Full ADRs for the architectural decisions. |
+| `docs/ARCHITECTURE.md` | Plain-English explanation of the system, for people outside it. |
 
 ## Hard rules
 

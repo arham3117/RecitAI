@@ -166,6 +166,7 @@ docs/adr/       why the architecture is what it is
 
 | File | What it holds |
 |---|---|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | **Start here** — how the system works, in plain English, with diagrams |
 | [plan/RECITAI_BUILD_SPEC.md](plan/RECITAI_BUILD_SPEC.md) | The specification |
 | [plan/PROGRESS.md](plan/PROGRESS.md) | Phase board and session log |
 | [plan/DECISIONS.md](plan/DECISIONS.md) | Every decision taken, including deviations from the spec |
