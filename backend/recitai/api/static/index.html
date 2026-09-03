@@ -18,8 +18,22 @@
   aside{border-right:1px solid var(--line);padding:22px 18px;background:var(--panel)}
   .brand{font-weight:650;letter-spacing:-.01em;margin-bottom:2px}
   .brand small{display:block;color:var(--muted);font-weight:400;font-size:12px;letter-spacing:0}
-  h2{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);
-     margin:26px 0 8px;font-weight:600}
+  /* Collapsible sidebar groups. Native <details> is keyboard-operable and announced
+     without any script, and the sidebar is never re-rendered so open/closed persists. */
+  details.grp{margin-top:20px}
+  details.grp>summary{display:flex;align-items:center;gap:6px;cursor:pointer;list-style:none;
+     font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);
+     font-weight:600;padding:4px 4px;border-radius:6px}
+  details.grp>summary::-webkit-details-marker{display:none}
+  details.grp>summary:hover{color:var(--ink)}
+  details.grp>summary .chev{flex:none;width:10px;height:10px;transition:transform .15s}
+  details.grp[open]>summary .chev{transform:rotate(90deg)}
+  details.grp>summary .count{margin-left:auto;font-weight:400;font-size:11px;
+     letter-spacing:0;text-transform:none;color:var(--muted);font-variant-numeric:tabular-nums}
+  details.grp>summary .badge{margin-left:auto;font-weight:600;font-size:10px;letter-spacing:0;
+     text-transform:none;background:var(--accent-soft);color:var(--accent);
+     padding:1px 7px;border-radius:20px}
+  details.grp .grp-body{margin-top:6px}
   main{padding:34px 40px;max-width:860px}
   h1{font-size:24px;letter-spacing:-.02em;margin:0 0 6px}
   .sub{color:var(--muted);margin:0 0 26px}
@@ -70,11 +84,28 @@
 <div class="app">
   <aside>
     <div class="brand">RecitAI<small>practice from your own material</small></div>
-    <h2>Course</h2><div id="course" class="muted" style="font-size:13.5px">loading…</div>
-    <h2>Topics</h2><div id="topics"></div>
-    <h2>Material</h2><div id="docs" style="font-size:12.5px" class="muted"></div>
-    <h2>Flashcards</h2><div id="deck" style="font-size:12.5px" class="muted"></div>
-    <button id="reviewBtn" style="width:100%;margin-top:10px;font-size:13px" hidden>Review due cards</button>
+    <div id="course" class="muted" style="font-size:13.5px;margin-top:22px">loading…</div>
+
+    <details class="grp" id="grpTopics">
+      <summary><svg class="chev" viewBox="0 0 10 10" aria-hidden="true"><path d="M3 1.5 L7 5 L3 8.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Topics<span id="topicsCount" class="count"></span></summary>
+      <div class="grp-body"><div id="topics"></div></div>
+    </details>
+
+    <details class="grp" id="grpDocs">
+      <summary><svg class="chev" viewBox="0 0 10 10" aria-hidden="true"><path d="M3 1.5 L7 5 L3 8.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Material<span id="docsCount" class="count"></span></summary>
+      <div class="grp-body"><div id="docs" style="font-size:12.5px" class="muted"></div></div>
+    </details>
+
+    <details class="grp" id="grpDeck">
+      <summary><svg class="chev" viewBox="0 0 10 10" aria-hidden="true"><path d="M3 1.5 L7 5 L3 8.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Flashcards<span id="deckCount" class="count"></span></summary>
+      <div class="grp-body">
+        <div id="deck" style="font-size:12.5px" class="muted"></div>
+        <button id="reviewBtn" style="width:100%;margin-top:10px;font-size:13px" hidden>Review due cards</button>
+      </div>
+    </details>
   </aside>
   <main id="main"></main>
 </div>
@@ -92,11 +123,18 @@ async function boot(){
   drawTopics();
   const docs=await (await fetch(`${API}/courses/${S.course.id}/documents`)).json();
   document.getElementById("docs").innerHTML=docs.map(d=>`<div style="padding:3px 8px">${esc(d.filename)}</div>`).join("");
+  setCount("docsCount", docs.length);
   document.getElementById("reviewBtn").onclick=reviewSession;
   await drawDeck();
   home();
 }
+function setCount(id, count, badge){
+  const el=document.getElementById(id);
+  el.className = badge ? "badge" : "count";
+  el.textContent = badge || (count ?? "");
+}
 function drawTopics(){
+  setCount("topicsCount", S.topics.length, S.sel.size ? `${S.sel.size} selected` : null);
   document.getElementById("topics").innerHTML="";
   S.topics.forEach(t=>{
     const el=$(`<div class="topic${S.sel.has(t.id)?" on":""}"><span>${esc(t.name)}</span><span>${t.chunk_count}</span></div>`);
@@ -110,6 +148,7 @@ async function drawDeck(){
     `<div style="padding:3px 8px">${st.due} due · ${st.new} new</div>
      <div style="padding:3px 8px">${st.learning} learning · ${st.mature} mature</div>`;
   document.getElementById("reviewBtn").hidden = st.due===0;
+  setCount("deckCount", st.total, st.due ? `${st.due} due` : null);
   return st;
 }
 
