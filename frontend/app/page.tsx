@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Chat } from "@/components/Chat";
+import { CourseSwitcher } from "@/components/CourseSwitcher";
+import { EmptyCourse } from "@/components/EmptyCourse";
 import { FlashcardReviewer } from "@/components/FlashcardReviewer";
 import { QuizRail } from "@/components/QuizRail";
 import { QuizRunner } from "@/components/QuizRunner";
@@ -28,6 +30,7 @@ type View =
   | { name: "error"; message: string };
 
 export default function Page() {
+  const [courses, setCourses] = useState<Course[]>([]);
   const [course, setCourse] = useState<Course | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
@@ -37,13 +40,17 @@ export default function Page() {
   const [view, setView] = useState<View>({ name: "library" });
   const [loading, setLoading] = useState(true);
 
-  const refresh = useCallback(async () => {
-    const courses = await api.courses();
-    if (courses.length === 0) {
+  const refresh = useCallback(async (preferId?: string) => {
+    const all = await api.courses();
+    setCourses(all);
+    if (all.length === 0) {
+      setCourse(null);
       setLoading(false);
       return;
     }
-    const active = courses[0];
+    // Keep whatever the student picked; fall back to the first only on a cold start.
+    const wanted = preferId ?? course?.id;
+    const active = all.find((c) => c.id === wanted) ?? all[0];
     setCourse(active);
     const [t, d, q, s] = await Promise.all([
       api.topics(active.id),
@@ -56,11 +63,21 @@ export default function Page() {
     setQuizzes(q);
     setDeck(s);
     setLoading(false);
-  }, []);
+  }, [course?.id]);
 
   useEffect(() => {
     void refresh().catch((e) => setView({ name: "error", message: String(e) }));
-  }, [refresh]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Ingestion runs in the background, so poll until it settles. Without this the sidebar
+  // says "processing" until the student reloads, and a finished upload looks stuck.
+  const ingesting = documents.some((d) => d.ingest_status === "pending" || d.ingest_status === "processing");
+  useEffect(() => {
+    if (!ingesting || !course) return;
+    const timer = setInterval(() => void refresh(course.id), 2500);
+    return () => clearInterval(timer);
+  }, [ingesting, course, refresh]);
 
   const startQuiz = useCallback(async (quizId: string) => {
     const [quiz, attempt] = await Promise.all([api.quiz(quizId), api.startAttempt(quizId)]);
@@ -125,20 +142,25 @@ export default function Page() {
     if (cards.length) setView({ name: "review", cards });
   }, [course]);
 
-  if (!loading && !course) {
-    return (
-      <main className="mx-auto max-w-canvas px-10 py-9">
-        <h1 className="text-display font-semibold">No course yet</h1>
-        <p className="mt-1.5 text-ink-muted">
-          Ingest material with <code className="rounded bg-line/50 px-1">make ingest</code>.
-        </p>
-      </main>
-    );
-  }
-
   return (
     <div className="grid min-h-screen grid-cols-[260px_1fr]">
       <Sidebar
+        header={
+          <CourseSwitcher
+            courses={courses}
+            active={course}
+            onSelect={(c) => {
+              setCourse(c);
+              setSelected(new Set());
+              void refresh(c.id);
+            }}
+            onCreated={(c) => {
+              setCourse(c);
+              setSelected(new Set());
+              void refresh(c.id);
+            }}
+          />
+        }
         course={course}
         topics={topics}
         documents={documents}
@@ -155,7 +177,11 @@ export default function Page() {
       />
 
       <main className="max-w-[1180px] px-10 py-9">
-        {view.name === "library" && course && (
+        {view.name === "library" && (!course || course.chunk_count === 0) && !loading && (
+          <EmptyCourse course={course} onUploaded={() => void refresh(course?.id)} />
+        )}
+
+        {view.name === "library" && course && course.chunk_count > 0 && (
           <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_268px]">
             <Chat
               courseId={course.id}
@@ -175,12 +201,12 @@ export default function Page() {
               onGenerate={(n) => void generate(n, "")}
               onStart={(id) => void startQuiz(id)}
               onReview={() => void review()}
-              onUploaded={() => void refresh()}
+              onUploaded={() => void refresh(course.id)}
             />
           </div>
         )}
 
-        {view.name === "library" && !course && (
+        {view.name === "library" && loading && (
           <div className="pt-4">
             <div className="skeleton h-8 w-72" />
             <div className="skeleton mt-3 h-4 w-96" />

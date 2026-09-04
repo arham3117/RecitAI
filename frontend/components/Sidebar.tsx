@@ -59,6 +59,7 @@ function Group({
 
 /** §14 design language: sidebar-left, canvas-right. */
 export function Sidebar({
+  header,
   course,
   topics,
   documents,
@@ -67,6 +68,7 @@ export function Sidebar({
   onToggleTopic,
   onReview,
 }: {
+  header?: React.ReactNode;
   course: Course | null;
   topics: Topic[];
   documents: DocumentSummary[];
@@ -86,12 +88,7 @@ export function Sidebar({
         </span>
       </div>
 
-      <p className="mt-6 text-small text-ink-muted">
-        {course ? course.name : "—"}
-        {course && (
-          <span className="block text-ink-faint">{course.chunk_count} passages</span>
-        )}
-      </p>
+      {header}
 
       <Group
         label="Topics"

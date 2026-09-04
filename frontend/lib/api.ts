@@ -30,6 +30,9 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   courses: () => req<Course[]>("/courses"),
+  createCourse: (name: string) =>
+    req<Course>("/courses", { method: "POST", body: JSON.stringify({ name }) }),
+  documentStatus: (documentId: string) => req<DocumentSummary>(`/documents/${documentId}/status`),
   topics: (courseId: string) => req<Topic[]>(`/courses/${courseId}/topics`),
   documents: (courseId: string) => req<DocumentSummary[]>(`/courses/${courseId}/documents`),
   quizzes: (courseId: string) => req<QuizSummary[]>(`/courses/${courseId}/quizzes`),

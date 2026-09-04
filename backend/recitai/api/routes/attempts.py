@@ -60,11 +60,17 @@ def _material_path(filename: str) -> Path | None:
     failing opaquely.
     """
     configured = Path(settings.materials_dir)
-    roots = [configured] if configured.is_absolute() else [configured, _REPO_ROOT / configured]
-    for root in roots:
-        candidate = root / filename
+    bases = [configured] if configured.is_absolute() else [configured, _REPO_ROOT / configured]
+    for base in bases:
+        candidate = base / filename
         if candidate.exists():
             return candidate
+        # Uploaded material lives under uploads/<course id>/, so search those too rather
+        # than only the bundled corpus.
+        uploads = base / "uploads"
+        if uploads.is_dir():
+            for found in uploads.glob(f"*/{filename}"):
+                return found
     return None
 
 

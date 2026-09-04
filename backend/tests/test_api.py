@@ -185,3 +185,46 @@ def test_chat_cites_the_passages_it_used(client: httpx.Client) -> None:
         assert source["page_start"] >= 1
         assert source["document_name"]
         assert source["page_end"] >= source["page_start"]
+
+
+def test_upload_returns_an_id_the_client_can_poll(client: httpx.Client) -> None:
+    """The upload used to return a freshly minted UUID matching no row, so every status
+    request 404'd and the interface could not tell a student whether ingestion had
+    finished — it just looked stuck forever."""
+    _db_or_skip(client)
+    from io import BytesIO
+
+    from pptx import Presentation
+
+    presentation = Presentation()
+    slide = presentation.slides.add_slide(presentation.slide_layouts[1])
+    slide.shapes.title.text = "Upload Probe"
+    slide.placeholders[1].text = "A short passage about an entirely invented subject."
+    buffer = BytesIO()
+    presentation.save(buffer)
+
+    course = client.post("/api/courses", json={"name": f"upload-probe-{uuid.uuid4()}"}).json()
+    response = client.post(
+        f"/api/courses/{course['id']}/documents",
+        files={"file": ("probe.pptx", buffer.getvalue(),
+                        "application/vnd.openxmlformats-officedocument.presentationml.presentation")},
+    )
+    assert response.status_code == 202
+    document = response.json()
+
+    # The student's own filename, not the temp name it was staged under.
+    assert document["filename"] == "probe.pptx"
+
+    status = client.get(f"/api/documents/{document['id']}/status")
+    assert status.status_code == 200, "the returned id must address a real document"
+    assert status.json()["filename"] == "probe.pptx"
+
+
+def test_a_new_course_starts_empty_and_isolated(client: httpx.Client) -> None:
+    """Material added to one course must not leak into another — otherwise 'answers from
+    your material' means 'answers from anyone's material'."""
+    _db_or_skip(client)
+    course = client.post("/api/courses", json={"name": f"isolation-probe-{uuid.uuid4()}"}).json()
+    assert course["chunk_count"] == 0
+    assert client.get(f"/api/courses/{course['id']}/topics").json() == []
+    assert client.get(f"/api/courses/{course['id']}/quizzes").json() == []

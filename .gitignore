@@ -1,4 +1,6 @@
 # ---- Course material (copyrighted, large) — see plan/ISSUES.md I-015 ----
+# Includes materials/uploads/, where a user's own files are kept so slide images can be
+# rendered from them (D-017).
 materials/
 *.pptx
 *.ppt

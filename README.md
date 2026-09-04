@@ -70,6 +70,15 @@ cp .env.example .env    # set POSTGRES_PASSWORD
 docker compose -f docker-compose.prod.yml up -d
 ```
 
+## Bringing your own material
+
+Create a course, drop in a `.pptx` or `.pdf`, and RecitAI reads it. Questions, answers and
+quizzes then come only from that course's material — a course knows nothing about any
+other course's files.
+
+The original file is kept, not discarded after reading, so the explanation panel can show
+you the real slide.
+
 ## Asking questions about the material
 
 Alongside quizzes there is a chat box: ask anything about your own slides and get an

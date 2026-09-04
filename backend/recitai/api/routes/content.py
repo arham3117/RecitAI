@@ -1,7 +1,6 @@
 """Courses, documents and topics (spec §12)."""
 
 import shutil
-import tempfile
 import uuid
 from pathlib import Path
 
@@ -12,7 +11,12 @@ from sqlalchemy import func, select
 
 from recitai.db.models import Chunk, Course, Document, Topic
 from recitai.db.session import session_scope
-from recitai.ingestion.pipeline import SUPPORTED_SUFFIXES, ingest_file
+from recitai.ingestion.pipeline import (
+    SUPPORTED_SUFFIXES,
+    ingest_file,
+    reserve_document,
+    uploads_dir,
+)
 from recitai.llm.ollama import OllamaClient
 from recitai.retrieval.topic_map import build_topic_map
 from recitai.retrieval.vector_store import VectorStore
@@ -76,17 +80,20 @@ class DocumentOut(BaseModel):
     ingest_error: str | None = None
 
 
-async def _ingest_and_map(path: Path, course_id: uuid.UUID) -> None:
-    """Ingest, then rebuild the topic tree so the new document is scoped correctly."""
+async def _ingest_and_map(path: Path, course_id: uuid.UUID, document_id: uuid.UUID) -> None:
+    """Ingest, then rebuild the topic tree so the new material is scoped correctly.
+
+    The uploaded file is deliberately *not* deleted: it is what a slide image is rendered
+    from (D-017), and it is what a re-ingest would read.
+    """
     client, store = OllamaClient(), VectorStore()
     try:
-        result = await ingest_file(path, course_id, client, store)
+        result = await ingest_file(path, course_id, client, store, document_id=document_id)
         if result.status == "complete":
             await build_topic_map(course_id, store, client=client)
     finally:
         await client.aclose()
         await store.aclose()
-        path.unlink(missing_ok=True)
 
 
 @router.post("/courses/{course_id}/documents", response_model=DocumentOut, status_code=202)
@@ -106,15 +113,23 @@ async def upload_document(
         if await session.get(Course, course_id) is None:
             raise HTTPException(404, f"no course {course_id}")
 
-    # Ingestion reads from disk and can take a while; stage the upload and hand it off.
-    staged = Path(tempfile.gettempdir()) / f"recitai-{uuid.uuid4()}{suffix}"
-    with staged.open("wb") as fh:
+    # Keep the original name: it is what the student sees in the sidebar, and a temp name
+    # told them nothing. Collisions get a numeric suffix rather than overwriting.
+    original = Path(file.filename or f"upload{suffix}").name
+    destination = uploads_dir(course_id) / original
+    counter = 1
+    while destination.exists():
+        destination = uploads_dir(course_id) / f"{Path(original).stem}-{counter}{suffix}"
+        counter += 1
+    with destination.open("wb") as fh:
         shutil.copyfileobj(file.file, fh)
-    background.add_task(_ingest_and_map, staged, course_id)
 
-    return DocumentOut(
-        id=uuid.uuid4(), filename=file.filename or staged.name, ingest_status="processing"
-    )
+    # Reserve the row before returning, so the id handed back is the id that will hold the
+    # result and the client can actually poll it.
+    document_id = await reserve_document(course_id, destination)
+    background.add_task(_ingest_and_map, destination, course_id, document_id)
+
+    return DocumentOut(id=document_id, filename=destination.name, ingest_status="pending")
 
 
 @router.get("/documents/{document_id}/status", response_model=DocumentOut)

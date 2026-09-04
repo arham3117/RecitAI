@@ -89,6 +89,46 @@ async def _discard_derived_questions(document_id: uuid.UUID) -> int:
         return len(doomed)
 
 
+def uploads_dir(course_id: uuid.UUID) -> Path:
+    """Where an uploaded file is kept.
+
+    Ingestion used to read from a temp file and delete it, which cost two things: the
+    stored filename was the temp name rather than the student's, and the original was gone
+    — so a slide image could never be rendered for uploaded material (D-017). Uploads are
+    now kept beside the bundled corpus.
+    """
+    from recitai.config import settings
+
+    root = Path(settings.materials_dir)
+    if not root.is_absolute():
+        root = Path(__file__).resolve().parents[3] / root
+    path = root / "uploads" / str(course_id)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+async def reserve_document(course_id: uuid.UUID, path: Path) -> uuid.UUID:
+    """Create the document row up front and return its real id.
+
+    The upload endpoint has to hand the client something it can poll. It previously
+    returned a freshly minted UUID that matched no row at all, so every status request
+    404'd and the interface could not tell the student whether ingestion had finished.
+    """
+    digest = sha256_file(path)
+    async with session_scope() as session:
+        existing = await session.scalar(
+            select(Document).where(Document.course_id == course_id, Document.sha256 == digest)
+        )
+        if existing is not None:
+            return existing.id
+        document = Document(
+            course_id=course_id, filename=path.name, sha256=digest, ingest_status="pending"
+        )
+        session.add(document)
+        await session.flush()
+        return document.id
+
+
 async def get_or_create_course(name: str, code: str | None = None) -> uuid.UUID:
     async with session_scope() as session:
         existing = await session.scalar(select(Course).where(Course.name == name))
@@ -107,7 +147,10 @@ async def ingest_file(
     store: VectorStore,
     *,
     force: bool = False,
+    document_id: uuid.UUID | None = None,
 ) -> IngestResult:
+    """Ingest one file. `document_id` adopts a row already reserved for it, so the id the
+    client is polling stays the id that ends up holding the result."""
     digest = sha256_file(path)
 
     # --- idempotency (§9 task 8) -------------------------------------------------
@@ -115,6 +158,9 @@ async def ingest_file(
         existing = await session.scalar(
             select(Document).where(Document.course_id == course_id, Document.sha256 == digest)
         )
+        if existing is not None and existing.id == document_id:
+            # The row this run reserved is not a previous ingest to clear away.
+            existing = None
         if existing and not force and existing.ingest_status == "complete":
             return IngestResult(
                 document_id=existing.id,
@@ -147,14 +193,19 @@ async def ingest_file(
         await store.delete_by_document(existing_id)
 
     async with session_scope() as session:
-        document = Document(
-            course_id=course_id,
-            filename=path.name,
-            sha256=digest,
-            ingest_status="processing",
-        )
-        session.add(document)
-        await session.flush()
+        reserved = await session.get(Document, document_id) if document_id else None
+        if reserved is not None:
+            reserved.ingest_status = "processing"
+            document = reserved
+        else:
+            document = Document(
+                course_id=course_id,
+                filename=path.name,
+                sha256=digest,
+                ingest_status="processing",
+            )
+            session.add(document)
+            await session.flush()
         document_id = document.id
 
     try:
