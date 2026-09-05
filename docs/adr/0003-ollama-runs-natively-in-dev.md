@@ -1,6 +1,6 @@
 # ADR 0003 — Ollama runs natively in development, containerised in production
 
-Status: accepted · 2026-08-31 · Spec §8 task 2, §16 task 3 · Log entry: [D-002](../../plan/DECISIONS.md#d-002)
+Status: accepted · 2026-08-31 · Spec §8 task 2, §16 task 3 · Decision log: `D-002`
 
 ## Context
 
@@ -44,5 +44,5 @@ either unusably slow local development or an untested deploy.
 
 The remaining open question is not architectural but economic: an always-on GPU host is
 the expensive part of hosting this, and invariant I5 makes local inference the default.
-Tracked as [I-013](../../plan/ISSUES.md#i-013); the `LLMClient` protocol (ADR 0002) is the
+Tracked as `I-013`; the `LLMClient` protocol (ADR 0002) is the
 seam that keeps hosted inference available without committing to it now.

@@ -6,7 +6,7 @@ has to satisfy before it lands.
 ## The rules that are not negotiable
 
 RecitAI makes six promises to a student, and they constrain the code more than any style
-guide does. They are stated in full in [`plan/RECITAI_BUILD_SPEC.md`](plan/RECITAI_BUILD_SPEC.md) §2:
+guide does. They come from §2 of the build spec, which is kept outside this repository:
 
 | | Invariant | What it forbids |
 |---|---|---|
@@ -87,16 +87,17 @@ deterministic check.
 
 ## Recording decisions
 
-The project keeps three logs, and a change that alters behaviour should update them:
+The project keeps three logs outside this repository — a decision log (`D-0NN`, including
+what was rejected and why), an issue register (`I-0NN`, each with its measurement), and a
+progress log. Comments in the code cite those identifiers, which is why you will see
+`D-013` or `I-030` in a docstring with nothing to click.
 
-- [`plan/DECISIONS.md`](plan/DECISIONS.md) — every decision, numbered `D-0NN`, including
-  what was rejected and why.
-- [`plan/ISSUES.md`](plan/ISSUES.md) — every problem, numbered `I-0NN`, with its
-  measurement.
-- [`plan/PROGRESS.md`](plan/PROGRESS.md) — a session log that lets a cold start resume.
+If you are working from a checkout alone, [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
+[`docs/evaluation.md`](docs/evaluation.md) and [`docs/adr/`](docs/adr/) carry the reasoning
+you need. If you have the logs, a change that alters behaviour should update them.
 
-If you hit a contradiction between the spec and reality, record it in `ISSUES.md` and stop.
-Do not silently work around it — that rule is why the issue log is worth reading.
+If you hit a contradiction between the spec and reality, record it and stop. Do not
+silently work around it — that rule is why the issue log is worth reading.
 
 ## Reporting a bug
 

@@ -1,6 +1,6 @@
 # ADR 0002 — No RAG framework; direct httpx to Ollama
 
-Status: accepted · 2026-08-31 · Spec §0.2, §4.4 · Log entry: [D-007](../../plan/DECISIONS.md#d-007)
+Status: accepted · 2026-08-31 · Spec §0.2, §4.4 · Decision log: `D-007`
 
 ## Context
 
@@ -31,6 +31,6 @@ The cost is roughly one file of infrastructure we would otherwise inherit: retri
 batching, streaming, and structured-output handling.
 
 `LLMClient` is the only seam a different inference backend would need, which keeps the
-hosting question ([I-013](../../plan/ISSUES.md#i-013)) open at zero cost. It exists for
+hosting question (`I-013`) open at zero cost. It exists for
 tests and for that future adapter — not as an escape hatch to reach for when the local
 model is slow (spec §0.2).

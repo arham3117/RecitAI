@@ -330,5 +330,8 @@ little; meeting it four more times over two weeks is what makes it stick.
 |---|---|
 | Why the two paths exist | [`docs/adr/0001-two-path-retrieval.md`](adr/0001-two-path-retrieval.md) |
 | The measured results | [`docs/evaluation.md`](evaluation.md) |
-| Every decision and why | [`plan/DECISIONS.md`](../plan/DECISIONS.md) |
-| Everything that went wrong | [`plan/ISSUES.md`](../plan/ISSUES.md) |
+| Why no RAG framework | [`docs/adr/0002-no-rag-framework.md`](adr/0002-no-rag-framework.md) |
+| How to work on it | [`CONTRIBUTING.md`](../CONTRIBUTING.md) |
+
+The `D-0NN` and `I-0NN` identifiers cited throughout the code index a decision log and an
+issue register kept outside this repository.

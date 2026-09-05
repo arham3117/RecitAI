@@ -166,7 +166,7 @@ Asked something the material does not cover, it says so and names what it *does*
 It never falls back on general knowledge, which for a study tool is the difference between
 useful and dangerous.
 
-This is a **v2 feature** ([D-018](plan/DECISIONS.md)); the spec lists chat mode as out of
+This is a **v2 feature** (D-018); the spec lists chat mode as out of
 scope for v1, and it was added after all nine phases were complete. It runs on Path B, so
 it does not touch how quizzes are built.
 
@@ -185,7 +185,7 @@ Three ways to get one, tried in order:
 | Neither | nothing | falls back to text, and says why |
 
 Text extraction never goes through a PDF — that would lose slide numbers, headings and
-speaker notes ([D-008](plan/DECISIONS.md)). The PDF is only ever used to draw a picture.
+speaker notes (D-008). The PDF is only ever used to draw a picture.
 
 ## Results
 
@@ -244,7 +244,7 @@ One environment variable, no code change:
 GEN_MODEL=qwen2.5:14b-instruct-q4_K_M make api
 ```
 
-Qwen 2.5 14B was measured ([D-013](plan/DECISIONS.md)): better on quality signals —
+Qwen 2.5 14B was measured (D-013): better on quality signals —
 first-attempt passes 38% → 50% — but 36% slower with p95 nearly doubled, for one extra
 question. 8B is retained.
 
@@ -285,17 +285,19 @@ docs/adr/       why the architecture is what it is
 | File | What it holds |
 |---|---|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | **Start here** — how the system works, in plain English, with diagrams |
-| [plan/RECITAI_BUILD_SPEC.md](plan/RECITAI_BUILD_SPEC.md) | The specification |
-| [plan/PROGRESS.md](plan/PROGRESS.md) | Phase board and session log |
-| [plan/DECISIONS.md](plan/DECISIONS.md) | Every decision taken, including deviations from the spec |
-| [plan/ISSUES.md](plan/ISSUES.md) | Every problem found, with its measurement |
-| [docs/evaluation.md](docs/evaluation.md) | Full evaluation results |
+| [docs/evaluation.md](docs/evaluation.md) | Full evaluation results, and what they do not show |
+| [docs/adr/](docs/adr/) | The three architectural decisions, in full |
 
-The issue log is worth reading if you want to know what actually goes wrong building this:
-a parser that silently flattened every slide onto one page, vector payloads that never
-received their topic id so scoping quietly degraded to the whole course, integration tests
-that reported green while skipping, and Symbol-font characters that removed the operators
-from every formula in 63% of the corpus.
+Comments throughout the code cite a decision (`D-0NN`) or an issue (`I-0NN`). Those refer
+to the build spec and its decision, issue and progress logs, which are kept outside this
+repository — the identifiers are retained because they are how the reasoning is indexed,
+and `docs/ARCHITECTURE.md` and `docs/evaluation.md` carry the substance that matters to a
+reader here.
+
+Some of what those logs record: a parser that silently flattened every slide onto one page,
+vector payloads that never received their topic id so scoping quietly degraded to the whole
+course, integration tests that reported green while skipping, and Symbol-font characters
+that removed the operators from every formula in 63% of the corpus.
 
 
 ## Contributing

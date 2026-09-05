@@ -10,6 +10,12 @@ materials/
 !backend/tests/fixtures/
 !backend/tests/fixtures/**
 
+# ---- Planning documents (kept local) ----
+# The build spec and the decision, issue and progress logs stay off the published
+# repository. Code comments still cite their D-0NN / I-0NN identifiers, and
+# tests/test_constants_verbatim.py skips when the spec is not present.
+plan/
+
 # ---- Secrets ----
 .env
 .env.local

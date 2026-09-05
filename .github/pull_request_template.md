@@ -5,7 +5,7 @@
 ## Why
 
 <!-- The reasoning, not just the restatement. If this reverses an earlier decision, say
-     which one (plan/DECISIONS.md D-0NN). -->
+     which one (decision log, `D-0NN`). -->
 
 ## Checks
 
@@ -25,5 +25,5 @@
 
 ## Logs updated
 
-- [ ] `plan/DECISIONS.md` — if a decision was taken
-- [ ] `plan/ISSUES.md` — if a problem was found or closed
+- [ ] Decision log — if a decision was taken
+- [ ] Issue register — if a problem was found or closed

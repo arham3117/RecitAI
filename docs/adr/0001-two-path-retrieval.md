@@ -1,6 +1,6 @@
 # ADR 0001 — Two retrieval paths: coverage sampling, never vector search, for generation
 
-Status: accepted · 2026-08-31 · Spec §3.1, §3.3 · Log entry: [D-006](../../plan/DECISIONS.md#d-006)
+Status: accepted · 2026-08-31 · Spec §3.1, §3.3 · Decision log: `D-006`
 
 ## Context
 
@@ -46,6 +46,6 @@ student weakness, then largest-remainder allocation — that no framework provid
 the main reason ADR 0002 rejects RAG frameworks: they cannot express this, and building
 it inside one means fighting the abstraction.
 
-One rule the spec left open is recorded in [I-006](../../plan/ISSUES.md#i-006): where the
+One rule the spec left open is recorded in `I-006`: where the
 allocation exceeds a topic's supply of eligible chunks, the shortfall must be
 redistributed and reported, never silently dropped.
