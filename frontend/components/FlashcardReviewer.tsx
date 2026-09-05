@@ -5,10 +5,10 @@ import { api } from "@/lib/api";
 import type { Flashcard } from "@/lib/types";
 
 const RATINGS = [
-  { label: "Again", value: 1 as const },
-  { label: "Hard", value: 2 as const },
-  { label: "Good", value: 3 as const },
-  { label: "Easy", value: 4 as const },
+  { label: "Again", value: 1 as const, tone: "hover:border-bad hover:bg-bad-soft hover:text-bad" },
+  { label: "Hard", value: 2 as const, tone: "hover:border-warn hover:bg-warn-soft hover:text-warn" },
+  { label: "Good", value: 3 as const, tone: "" },
+  { label: "Easy", value: 4 as const, tone: "hover:border-good hover:bg-good-soft hover:text-good" },
 ];
 
 export function FlashcardReviewer({
@@ -78,8 +78,16 @@ export function FlashcardReviewer({
           />
         ))}
       </div>
-      <div className="mb-3.5 flex items-center justify-end gap-3">
-        <span className="rounded-full border border-line bg-paper px-2.5 py-0.5 text-small text-ink-muted">
+      {/* Left-aligned above the card it describes: floated to the right it read as a
+          stray control rather than a label for what you are about to see. */}
+      <div className="mb-2.5">
+        <span
+          className={`chip ${
+            card.origin === "missed_question"
+              ? "bg-good-soft text-good"
+              : "bg-line/60 text-ink-muted"
+          }`}
+        >
           {card.origin === "missed_question" ? "from a question you missed" : "generated"}
         </span>
       </div>
@@ -89,7 +97,7 @@ export function FlashcardReviewer({
 
         {revealed ? (
           <>
-            <blockquote className="mt-4 rounded-r-control border-l-[3px] border-accent bg-paper px-4 py-3">
+            <blockquote className="mt-4 rounded-r-control border-l-[3px] border-good bg-good-soft/40 px-4 py-3">
               {card.back}
             </blockquote>
             {card.page_refs.length > 0 && (
@@ -99,7 +107,7 @@ export function FlashcardReviewer({
               {RATINGS.map((r) => (
                 <button
                   key={r.value}
-                  className={`btn ${r.value === 3 ? "btn-primary" : ""}`}
+                  className={`btn transition-colors ${r.value === 3 ? "btn-primary" : r.tone}`}
                   onClick={() => void grade(r.value)}
                 >
                   {r.label} <span className="opacity-60">{r.value}</span>

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { uploadDocument } from "@/lib/api";
+import { IconAsk, IconCards, IconQuiz } from "./icons";
 import type { Course } from "@/lib/types";
 
 /** First run. The previous empty state told the reader to run `make ingest`, which is an
@@ -34,7 +35,7 @@ export function EmptyCourse({
 
   if (!course) {
     return (
-      <div className="pt-4">
+      <div className="pt-8">
         <h1 className="text-display font-semibold">Start with a course</h1>
         <p className="mt-1.5 max-w-[58ch] text-ink-muted">
           Create one in the sidebar, then add your lecture slides. Everything stays on this
@@ -45,7 +46,7 @@ export function EmptyCourse({
   }
 
   return (
-    <div className="pt-4">
+    <div className="pt-8">
       <h1 className="text-display font-semibold">Add your material</h1>
       <p className="mt-1.5 max-w-[58ch] text-ink-muted">
         Drop in the slides for <b className="text-ink">{course.name}</b>. RecitAI reads them,
@@ -92,6 +93,40 @@ export function EmptyCourse({
         you the source of every answer. Scanned PDFs are not supported, since there is no
         text to read.
       </p>
+
+      {/* What the three things are, before you have any material to try them on. Each
+          carries the colour it will keep everywhere else in the app. */}
+      <div className="mt-9">
+        <p className="label">Once it is in, you can</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          {[
+            {
+              tile: "bg-accent-soft text-accent",
+              icon: <IconAsk />,
+              title: "Ask it anything",
+              body: "Answers come only from your slides, each citing the one it came from.",
+            },
+            {
+              tile: "bg-accent-soft text-accent",
+              icon: <IconQuiz />,
+              title: "Get quizzed",
+              body: "One question per concept it finds — the length follows your material.",
+            },
+            {
+              tile: "bg-good-soft text-good",
+              icon: <IconCards />,
+              title: "Review what you missed",
+              body: "Wrong answers become flashcards that come back on a schedule.",
+            },
+          ].map((step) => (
+            <div key={step.title} className="panel p-4">
+              <span className={`tile ${step.tile}`}>{step.icon}</span>
+              <p className="mt-2.5 text-small font-medium">{step.title}</p>
+              <p className="mt-1 text-[12.5px] leading-relaxed text-ink-muted">{step.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

@@ -2,7 +2,35 @@
 
 import { useRef, useState } from "react";
 import { uploadDocument } from "@/lib/api";
+import { IconArrow, IconCards, IconPlus, IconQuiz } from "./icons";
 import type { Coverage, Course, DeckStats, QuizSummary } from "@/lib/types";
+
+/** One action row: tinted tile, label, sub-label, affordance arrow. */
+function ActionRow({
+  tone,
+  icon,
+  title,
+  detail,
+  onClick,
+}: {
+  tone: "accent" | "good";
+  icon: React.ReactNode;
+  title: string;
+  detail: React.ReactNode;
+  onClick: () => void;
+}) {
+  const tile = tone === "good" ? "bg-good-soft text-good" : "bg-accent-soft text-accent";
+  return (
+    <button onClick={onClick} className="row group w-full items-start hover:bg-paper">
+      <span className={`tile mt-px ${tile}`}>{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-small font-medium">{title}</span>
+        <span className="block text-[11.5px] leading-snug text-ink-muted">{detail}</span>
+      </span>
+      <IconArrow className="mt-1.5 h-3 w-3 flex-none text-ink-faint transition-transform group-hover:translate-x-0.5 group-hover:text-ink-muted" />
+    </button>
+  );
+}
 
 /** The quiz controls, alongside the chat rather than instead of it. Chat is for
  *  understanding something now; a quiz is for finding out what you do not know — they are
@@ -33,6 +61,7 @@ export function QuizRail({
   onUploaded: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function upload(file: File) {
@@ -45,124 +74,145 @@ export function QuizRail({
     }
   }
 
+  const ready = coverage && coverage.concepts > 0;
+
   return (
     // Sticky, but scrollable within the viewport: the rail used to run past the bottom of
     // the window and the last card was simply unreachable.
-    <aside className="space-y-3 lg:sticky lg:top-9 lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto lg:pb-2">
-      <section className="card !p-4">
-        <h2 className="label">Practice</h2>
-
-        {/* A quiz covers the concepts in the selected material — its length follows the
-            material rather than a number the student had to invent. Showing what will be
-            covered before generating keeps that from being a surprise. */}
-        {coverage === null ? (
-          <div className="mt-3 space-y-2">
-            <div className="skeleton h-4 w-32" />
-            <div className="skeleton h-4 w-24" />
-          </div>
-        ) : coverage.concepts === 0 ? (
-          <p className="mt-2 text-small text-ink-muted">
-            Nothing to quiz on in this selection yet.
-          </p>
-        ) : (
-          <>
-            <p className="mt-2">
-              <b>
-                {coverage.concepts} concept{coverage.concepts === 1 ? "" : "s"}
-              </b>
-              <span className="text-ink-muted">
-                {" "}
-                in {selectedCount > 0 ? "your selection" : "this course"}
-              </span>
-            </p>
+    <aside className="space-y-2.5 lg:sticky lg:top-6 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:pb-2">
+      {/* The generator is the one thing on this rail with a primary action, so it is the
+          only one that gets a filled card. */}
+      <section className="panel overflow-hidden">
+        <div className="border-b border-line bg-paper px-4 py-2">
+          <h2 className="label">Build a quiz</h2>
+        </div>
+        <div className="p-4">
+          {/* A quiz covers the concepts in the selected material — its length follows the
+              material rather than a number the student had to invent. Showing what will be
+              covered before generating keeps that from being a surprise. */}
+          {coverage === null ? (
+            <div className="space-y-2">
+              <div className="skeleton h-5 w-28" />
+              <div className="skeleton h-3.5 w-36" />
+            </div>
+          ) : coverage.concepts === 0 ? (
             <p className="text-small text-ink-muted">
-              across {coverage.topics} topic{coverage.topics === 1 ? "" : "s"} · about{" "}
-              {Math.max(1, Math.round(coverage.estimated_seconds / 60))} min to generate
+              Nothing to quiz on in this selection yet.
             </p>
-          </>
-        )}
+          ) : (
+            <>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-[26px] font-semibold leading-none tracking-tight">
+                  {coverage.concepts}
+                </span>
+                <span className="text-small text-ink-muted">
+                  concept{coverage.concepts === 1 ? "" : "s"} found
+                </span>
+              </div>
+              <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-muted">
+                in {selectedCount > 0 ? "your selected topics" : "this whole course"} · across{" "}
+                {coverage.topics} topic{coverage.topics === 1 ? "" : "s"} · about{" "}
+                {Math.max(1, Math.round(coverage.estimated_seconds / 60))} min to write
+              </p>
+            </>
+          )}
 
-        <button
-          className="btn btn-primary mt-3 w-full"
-          disabled={busy || !coverage || coverage.concepts === 0}
-          onClick={onGenerate}
-        >
-          {busy ? "Generating…" : "Quiz me on this"}
-        </button>
-        <p className="mt-2.5 text-small text-ink-muted">
-          One question per concept, generated locally. Pick topics on the left to narrow it.
-        </p>
+          <button
+            className="btn btn-primary mt-3 w-full"
+            disabled={busy || !ready}
+            onClick={onGenerate}
+          >
+            {busy ? "Generating…" : "Quiz me on this"}
+          </button>
+          <p className="mt-2 text-[11.5px] leading-relaxed text-ink-muted">
+            One question per concept — pick topics on the left to narrow it.
+          </p>
+        </div>
       </section>
 
-      {/* Secondary actions are compact rows, not full cards. Four stacked cards ran past
+      {/* Everything else is a compact row inside one panel. Four stacked cards ran past
           the bottom of the window, which put "add material" somewhere nobody would find. */}
-      {quizzes.length > 0 && (
-        <div
-          className="rounded-card border border-line bg-paper-raised
-                     hover:border-line-strong"
-        >
-          <button
-            onClick={() => onStart(quizzes[0].id)}
-            className="flex w-full items-center gap-3 p-3 text-left"
-          >
-            <span className="min-w-0 flex-1">
-              <span className="block text-small font-medium">
-                {progress
-                  ? `Resume quiz · ${progress.answered} of ${progress.total} answered`
-                  : `Start ready quiz · ${quizzes[0].question_count} questions`}
-              </span>
-              <span className="block text-[11.5px] text-ink-muted">
-                {new Date(quizzes[0].created_at).toLocaleDateString()}
-                {typeof quizzes[0].generation_meta?.validator_pass_rate === "number" && (
-                  <>
-                    {" · "}
-                    {Math.round(
-                      (quizzes[0].generation_meta.validator_pass_rate as number) * 100,
-                    )}
-                    % passed the validator
-                  </>
+      {(quizzes.length > 0 || (deck && deck.due > 0)) && (
+        <section className="panel overflow-hidden">
+          <div className="border-b border-line bg-paper px-4 py-2">
+            <h2 className="label">Continue</h2>
+          </div>
+          <div className="space-y-0.5 p-1.5">
+            {quizzes.length > 0 && (
+              <>
+                <ActionRow
+                  tone="accent"
+                  icon={<IconQuiz />}
+                  title={progress ? "Resume your quiz" : "Ready quiz"}
+                  detail={
+                    <>
+                      {progress
+                        ? `${progress.answered} of ${progress.total} answered · `
+                        : `${quizzes[0].question_count} questions · `}
+                      {new Date(quizzes[0].created_at).toLocaleDateString()}
+                      {typeof quizzes[0].generation_meta?.validator_pass_rate === "number" && (
+                        <>
+                          {" · "}
+                          {Math.round(
+                            (quizzes[0].generation_meta.validator_pass_rate as number) * 100,
+                          )}
+                          % passed
+                        </>
+                      )}
+                    </>
+                  }
+                  onClick={() => onStart(quizzes[0].id)}
+                />
+                {/* Resuming is the default, so starting again has to be reachable — but
+                    quietly, since it throws away answers already given. */}
+                {progress && (
+                  <button
+                    onClick={() => onStart(quizzes[0].id, true)}
+                    className="ml-[42px] block px-2.5 pb-1 text-[11.5px] text-ink-muted
+                               hover:text-ink"
+                  >
+                    Start over from the first question
+                  </button>
                 )}
-              </span>
-            </span>
-          </button>
-          {/* Resuming is the default, so starting again has to be reachable — but quietly,
-              since it throws away answers already given. */}
-          {progress && (
-            <button
-              onClick={() => onStart(quizzes[0].id, true)}
-              className="w-full border-t border-line px-3 py-2 text-left text-[11.5px]
-                         text-ink-muted hover:text-ink"
-            >
-              Start over from the first question
-            </button>
-          )}
-        </div>
+              </>
+            )}
+
+            {deck && deck.due > 0 && (
+              <ActionRow
+                tone="good"
+                icon={<IconCards />}
+                title="Review your flashcards"
+                detail={`${deck.due} due · questions you missed, on a schedule`}
+                onClick={onReview}
+              />
+            )}
+          </div>
+        </section>
       )}
 
-      {deck && deck.due > 0 && (
-        <button
-          onClick={onReview}
-          className="flex w-full items-center gap-3 rounded-card border border-line
-                     bg-paper-raised p-3 text-left hover:border-line-strong"
-        >
-          <span className="min-w-0 flex-1">
-            <span className="block text-small font-medium">
-              Review {deck.due} due card{deck.due > 1 ? "s" : ""}
-            </span>
-            <span className="block text-[11.5px] text-ink-muted">
-              questions you missed, coming back on a schedule
-            </span>
-          </span>
-        </button>
-      )}
-
+      {/* Also a drop target, not just a button — dragging a deck onto it is the gesture
+          people try first. */}
       <button
         onClick={() => fileRef.current?.click()}
-        className="flex w-full items-center gap-3 rounded-card border border-dashed
-                   border-line bg-transparent p-3 text-left text-small text-ink-muted
-                   hover:border-line-strong hover:text-ink"
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          const file = e.dataTransfer.files?.[0];
+          if (file) void upload(file);
+        }}
+        className={`row w-full justify-center border border-dashed text-small transition-colors ${
+          dragging
+            ? "border-accent bg-accent-soft text-accent"
+            : "border-line text-ink-muted hover:border-line-strong hover:text-ink"
+        }`}
       >
-        + Add slides or a PDF
+        <IconPlus />
+        {dragging ? "Drop to add it" : "Add slides or a PDF"}
       </button>
       <input
         ref={fileRef}
@@ -175,7 +225,9 @@ export function QuizRail({
           e.target.value = "";
         }}
       />
-      {error && <p className="text-small text-bad">{error}</p>}
+      {error && (
+        <p className="rounded-control bg-bad-soft px-3 py-2 text-small text-bad">{error}</p>
+      )}
     </aside>
   );
 }

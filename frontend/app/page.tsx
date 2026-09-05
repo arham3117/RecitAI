@@ -7,6 +7,8 @@ import { EmptyCourse } from "@/components/EmptyCourse";
 import { FlashcardReviewer } from "@/components/FlashcardReviewer";
 import { QuizRail } from "@/components/QuizRail";
 import { QuizRunner } from "@/components/QuizRunner";
+import { CanvasHeader } from "@/components/CanvasHeader";
+import { IconCards } from "@/components/icons";
 import { Sidebar } from "@/components/Sidebar";
 import { SkeletonQuestion } from "@/components/Skeleton";
 import { api } from "@/lib/api";
@@ -178,8 +180,12 @@ export default function Page() {
     if (cards.length) setView({ name: "review", cards });
   }, [course]);
 
+  const scopeLabel = selected.size
+    ? `${selected.size} selected topic${selected.size > 1 ? "s" : ""}`
+    : "all material";
+
   return (
-    <div className="grid min-h-screen grid-cols-[260px_1fr]">
+    <div className="grid min-h-screen grid-cols-[264px_1fr]">
       <Sidebar
         header={
           <CourseSwitcher
@@ -209,106 +215,131 @@ export default function Page() {
             return next;
           })
         }
+        onClearTopics={() => setSelected(new Set())}
         onReview={() => void review()}
       />
 
-      {/* The library needs room for chat plus the rail; a quiz or a card is one column of
-          reading, and long measure makes options harder to scan. */}
-      <main
-        className={`px-10 py-9 ${
-          view.name === "quiz" || view.name === "review" ? "max-w-3xl" : "max-w-7xl"
-        }`}
-      >
+      {/* Only the library needs the wide measure — it carries chat plus the rail.
+          Everything else is a single column of reading, and a long measure makes
+          options, explanations and a score card all harder to scan. */}
+      <main className={`px-8 pb-10 ${view.name === "library" ? "max-w-7xl" : "max-w-3xl"}`}>
         {view.name === "library" && (!course || course.chunk_count === 0) && !loading && (
           <EmptyCourse course={course} onUploaded={() => void refresh(course?.id)} />
         )}
 
         {view.name === "library" && course && course.chunk_count > 0 && (
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_264px]">
-            <Chat
-              courseId={course.id}
-              topicIds={[...selected]}
-              scopeLabel={
-                selected.size
-                  ? `${selected.size} selected topic${selected.size > 1 ? "s" : ""}`
-                  : "your course material"
-              }
-            />
-            <QuizRail
+          <>
+            <CanvasHeader
               course={course}
-              quizzes={quizzes}
-              deck={deck}
-              selectedCount={selected.size}
-              busy={false}
-              coverage={coverage}
-              onGenerate={() => void generate()}
-              progress={progress}
-              onStart={(id, restart) => void startQuiz(id, restart)}
-              onReview={() => void review()}
-              onUploaded={() => void refresh(course.id)}
+              scopeLabel={scopeLabel}
+              narrowed={selected.size > 0}
+              onClearScope={() => setSelected(new Set())}
             />
-          </div>
+            <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_272px]">
+              <Chat
+                courseId={course.id}
+                topicIds={[...selected]}
+                scopeLabel={scopeLabel === "all material" ? "your course material" : scopeLabel}
+              />
+              <QuizRail
+                course={course}
+                quizzes={quizzes}
+                deck={deck}
+                selectedCount={selected.size}
+                busy={false}
+                coverage={coverage}
+                onGenerate={() => void generate()}
+                progress={progress}
+                onStart={(id, restart) => void startQuiz(id, restart)}
+                onReview={() => void review()}
+                onUploaded={() => void refresh(course.id)}
+              />
+            </div>
+          </>
         )}
 
         {view.name === "library" && loading && (
-          <div className="pt-4">
+          <div className="pt-8">
             <div className="skeleton h-8 w-72" />
             <div className="skeleton mt-3 h-4 w-96" />
           </div>
         )}
 
         {view.name === "generating" && (
-          <>
-            <h1 className="text-display font-semibold">Generating</h1>
-            <p className="mt-1.5 mb-6 text-ink-muted">{view.detail}</p>
-            <div className="mb-6 h-[3px] overflow-hidden rounded-sm bg-line">
+          <div className="pt-8">
+            <div className="flex items-baseline justify-between gap-4">
+              <h1 className="text-display font-semibold">Writing your quiz</h1>
+              <span className="text-small tabular-nums text-ink-muted">
+                {view.progress} / {view.total || "…"}
+              </span>
+            </div>
+            <p className="mt-1.5 mb-5 text-ink-muted">{view.detail}</p>
+            <div className="mb-7 h-1.5 overflow-hidden rounded-full bg-line">
               <div
-                className="h-full bg-accent transition-all duration-300"
-                style={{ width: `${Math.max(4, (view.progress / Math.max(1, view.total)) * 100)}%` }}
+                className="h-full rounded-full bg-accent transition-all duration-300"
+                style={{ width: `${Math.max(3, (view.progress / Math.max(1, view.total)) * 100)}%` }}
               />
             </div>
             <SkeletonQuestion />
-            <p className="mt-4 text-small text-ink-muted">
-              Each question is generated from a passage, then checked for length bias,
+            <p className="mt-5 max-w-[62ch] text-small text-ink-muted">
+              Each question is written from one passage, then checked for length bias,
               near-duplicate options, answer leakage and groundedness. Rejected questions are
-              regenerated.
+              regenerated, which is why this takes a moment.
             </p>
-          </>
+          </div>
         )}
 
         {view.name === "quiz" && (
-          <QuizRunner
-            quiz={view.quiz}
-            attemptId={view.attemptId}
-            startIndex={view.startIndex}
-            onFinish={() => void finishQuiz(view.attemptId)}
-            onExit={() => setView({ name: "library" })}
-          />
+          <div className="pt-8">
+            <QuizRunner
+              quiz={view.quiz}
+              attemptId={view.attemptId}
+              startIndex={view.startIndex}
+              onFinish={() => void finishQuiz(view.attemptId)}
+              onExit={() => setView({ name: "library" })}
+            />
+          </div>
         )}
 
         {view.name === "results" && (
-          <>
-            <h1 className="text-display font-semibold">Results</h1>
-            <section className="card mt-4">
-              <div className="text-[40px] font-semibold tracking-tight">
-                {Math.round(view.results.score * 100)}%
-              </div>
-              <p className="text-ink-muted">
-                {view.results.correct} of {view.results.answered} correct
-              </p>
-            </section>
-            {view.cardsAdded > 0 && (
-              <section className="card mt-3.5">
-                <b>
-                  {view.cardsAdded} card{view.cardsAdded > 1 ? "s" : ""} added to your deck
-                </b>
-                <p className="mt-1 text-small text-ink-muted">
-                  Questions you missed become flashcards, so you meet them again on a schedule
-                  rather than once.
+          <div className="pt-8">
+            <h1 className="text-display font-semibold">How you did</h1>
+            {/* The score is the one number worth a large, coloured treatment — and the
+                colour is the grade, so it has to be earned rather than chosen. */}
+            <section className="panel mt-4 flex flex-wrap items-center gap-5 p-6">
+              <ScoreDial score={view.results.score} />
+              <div className="min-w-0">
+                <p className="text-title font-medium">
+                  {view.results.correct} of {view.results.answered} correct
                 </p>
+                <p className="mt-0.5 text-small text-ink-muted">
+                  {view.results.score >= 0.8
+                    ? "Strong. The misses below are worth a second look."
+                    : view.results.score >= 0.5
+                      ? "A reasonable start — the gaps are now on a schedule."
+                      : "Plenty to work on. Every miss became a flashcard."}
+                </p>
+              </div>
+            </section>
+
+            {view.cardsAdded > 0 && (
+              <section className="panel mt-2.5 flex items-start gap-3 p-4">
+                <span className="tile bg-good-soft text-good">
+                  <IconCards />
+                </span>
+                <div>
+                  <p className="text-small font-medium">
+                    {view.cardsAdded} card{view.cardsAdded > 1 ? "s" : ""} added to your deck
+                  </p>
+                  <p className="mt-0.5 text-small text-ink-muted">
+                    Questions you missed become flashcards, so you meet them again on a
+                    schedule rather than once.
+                  </p>
+                </div>
               </section>
             )}
-            <div className="mt-4 flex gap-2.5">
+
+            <div className="mt-5 flex flex-wrap gap-2.5">
               <button className="btn btn-primary" onClick={() => setView({ name: "library" })}>
                 Back to practice
               </button>
@@ -318,29 +349,68 @@ export default function Page() {
                 </button>
               )}
             </div>
-          </>
+          </div>
         )}
 
         {view.name === "review" && (
-          <FlashcardReviewer
-            cards={view.cards}
-            onDone={() => {
-              void refresh();
-              setView({ name: "library" });
-            }}
-          />
+          <div className="pt-8">
+            <FlashcardReviewer
+              cards={view.cards}
+              onDone={() => {
+                void refresh();
+                setView({ name: "library" });
+              }}
+            />
+          </div>
         )}
 
         {view.name === "error" && (
-          <>
-            <h1 className="text-display font-semibold">Something went wrong</h1>
-            <p className="mt-1.5 text-ink-muted">{view.message}</p>
-            <button className="btn mt-4" onClick={() => setView({ name: "library" })}>
-              Back
+          <div className="pt-8">
+            <span className="tile bg-bad-soft text-bad">!</span>
+            <h1 className="mt-3 text-display font-semibold">Something went wrong</h1>
+            <p className="mt-1.5 max-w-[62ch] text-ink-muted">{view.message}</p>
+            <button className="btn mt-5" onClick={() => setView({ name: "library" })}>
+              Back to practice
             </button>
-          </>
+          </div>
         )}
+
       </main>
+    </div>
+  );
+}
+
+/** Score as a ring rather than a number alone: the colour is the grade, and an arc is
+ *  read before a percentage is. Green at 80, amber at 50, red below. */
+function ScoreDial({ score }: { score: number }) {
+  const tone = score >= 0.8 ? "good" : score >= 0.5 ? "warn" : "bad";
+  const stroke = { good: "#0f7b52", warn: "#a15c07", bad: "#b42318" }[tone];
+  const r = 34;
+  const circumference = 2 * Math.PI * r;
+
+  return (
+    <div className="relative h-[92px] w-[92px] flex-none">
+      <svg viewBox="0 0 80 80" className="h-full w-full -rotate-90">
+        <circle cx="40" cy="40" r={r} fill="none" stroke="#e5e3de" strokeWidth="7" />
+        <circle
+          cx="40"
+          cy="40"
+          r={r}
+          fill="none"
+          stroke={stroke}
+          strokeWidth="7"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - score)}
+        />
+      </svg>
+      <span
+        className="absolute inset-0 grid place-items-center text-[22px] font-semibold
+                   tabular-nums tracking-tight"
+        style={{ color: stroke }}
+      >
+        {Math.round(score * 100)}%
+      </span>
     </div>
   );
 }

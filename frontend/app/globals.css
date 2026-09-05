@@ -18,10 +18,30 @@
            disabled:cursor-not-allowed disabled:hover:border-line;
   }
   .btn-primary {
-    @apply bg-ink text-white border-ink hover:bg-black hover:border-black;
+    @apply bg-ink text-white border-ink hover:bg-black hover:border-black
+           disabled:bg-transparent disabled:border-line disabled:text-ink-faint
+           disabled:opacity-100;
   }
   .label {
     @apply text-micro uppercase font-semibold text-ink-muted;
+  }
+  /* Colour lives in these: a small tinted square behind an icon. It marks what a thing
+     is without tinting whole surfaces, which is what makes an interface look loud. */
+  .tile {
+    @apply grid h-7 w-7 flex-none place-items-center rounded-tile;
+  }
+  /* A compact, tappable row — the unit the rail and the sidebar lists are built from. */
+  .row {
+    @apply flex w-full items-center gap-2.5 rounded-control px-2.5 py-2 text-left
+           transition-colors;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-px
+           text-[11px] font-medium tabular-nums;
+  }
+  /* A section heading inside a panel: a hairline that carries the label. */
+  .panel {
+    @apply rounded-card border border-line bg-paper-raised;
   }
   /* Skeletons are functional here, not decorative: local generation is slow enough that
      the student needs to see the shape of what is coming (§14). */

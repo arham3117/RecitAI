@@ -76,6 +76,17 @@ export function QuizRunner({
     return "border-line bg-paper-raised opacity-60";
   }
 
+  function badgeClass(id: string) {
+    if (!result) {
+      return selected === id
+        ? "border-accent bg-accent text-white"
+        : "border-line bg-paper text-ink-muted";
+    }
+    if (id === result.correct_option_id) return "border-good bg-good text-white";
+    if (id === result.selected_option_id) return "border-bad bg-bad text-white";
+    return "border-line bg-paper text-ink-faint";
+  }
+
   return (
     <div>
       {/* A quiz previously had no way out: once started you were held until the last
@@ -125,7 +136,11 @@ export function QuizRunner({
               onClick={() => setSelected(option.id)}
               className={`flex w-full items-start gap-3 rounded-[9px] border px-4 py-3 text-left transition-colors ${optionClass(option.id)}`}
             >
-              <kbd className="mt-0.5 grid h-[21px] w-[21px] flex-none place-items-center rounded-[5px] border border-line bg-paper font-mono text-[11px] font-semibold text-ink-muted">
+              <kbd
+                className={`mt-0.5 grid h-[21px] w-[21px] flex-none place-items-center
+                            rounded-[5px] border font-mono text-[11px] font-semibold
+                            transition-colors ${badgeClass(option.id)}`}
+              >
                 {i + 1}
               </kbd>
               <span

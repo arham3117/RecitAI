@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { IconArrow } from "./icons";
 import type { ChatSource, ChatTurn } from "@/lib/types";
 
 /** Passages an answer was built from. Shown above the answer, because they arrive first:
@@ -94,19 +95,19 @@ export function Chat({
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-9rem)] flex-col">
+    <div className="flex min-h-[calc(100vh-11rem)] flex-col">
       <div className={turns.length === 0 ? "" : "flex-1"}>
         {turns.length === 0 ? (
-          <div className="pt-4">
-            <h1 className="text-[1.6rem] font-semibold leading-tight tracking-tight">
+          <div>
+            <h2 className="text-title font-semibold tracking-tight">
               Ask about your material
-            </h1>
-            <p className="mt-1.5 max-w-[60ch] text-ink-muted">
-              Answers come only from your own slides, with the passage and slide number
-              they came from. If your material does not cover something, it will say so
-              rather than guess.
+            </h2>
+            <p className="mt-1 max-w-[58ch] text-small text-ink-muted">
+              Every answer cites the slide it came from. If your material does not cover
+              something, it says so rather than guessing.
             </p>
-            <div className="mt-6 flex flex-wrap gap-2">
+            <p className="label mt-6">Try one of these</p>
+            <div className="mt-2 flex flex-wrap gap-2">
               {[
                 "What is vertical fragmentation?",
                 "How does a semijoin work?",
@@ -114,7 +115,9 @@ export function Chat({
               ].map((q) => (
                 <button
                   key={q}
-                  className="btn text-small"
+                  className="rounded-full border border-line bg-paper-raised px-3 py-1.5
+                             text-small text-ink-muted transition-colors
+                             hover:border-accent-line hover:bg-accent-soft hover:text-accent"
                   onClick={() => setDraft(q)}
                 >
                   {q}
@@ -169,8 +172,13 @@ export function Chat({
             placeholder={`Ask about ${scopeLabel}…`}
             className="max-h-40 flex-1 resize-none bg-transparent px-2 py-1.5 outline-none placeholder:text-ink-faint"
           />
-          <button className="btn btn-primary" disabled={busy || !draft.trim()} onClick={() => void send()}>
-            {busy ? "…" : "Ask"}
+          <button
+            className="btn btn-primary !px-3.5"
+            disabled={busy || !draft.trim()}
+            onClick={() => void send()}
+            aria-label="Ask"
+          >
+            {busy ? "…" : <IconArrow className="h-4 w-4" />}
           </button>
         </div>
         <p className="mt-2 text-small text-ink-muted">
