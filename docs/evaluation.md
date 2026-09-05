@@ -136,7 +136,8 @@ twice.
 ## Reranking (§15 task 8)
 
 `bge-reranker-base` is **not added**. §15 says to add it "only if retrieval eval justifies
-it": recall@5 is 1.00 and MRR 0.920, so there is nothing for a reranker to improve. It
+it": recall@5 is 1.00 and MRR 0.911 over the 35-pair golden set, so there is nothing for a
+reranker to improve. It
 would add a model, latency, and a dependency to fix a problem that is not present.
 
 ## Honest limitations

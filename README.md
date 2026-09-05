@@ -1,11 +1,41 @@
 # RecitAI
 
+<p>
+  <img src="https://img.shields.io/badge/Status-All%209%20phases%20complete-brightgreen" alt="status">
+  <img src="https://img.shields.io/badge/Inference-100%25%20local-black" alt="local inference">
+  <img src="https://img.shields.io/badge/Topic%20coverage-100%25-blue" alt="topic coverage">
+  <img src="https://img.shields.io/badge/recall%405-1.00%20%C2%B7%20MRR%200.911-blue" alt="retrieval quality">
+  <img src="https://img.shields.io/badge/Python-3.12-3776AB" alt="python 3.12">
+  <img src="https://img.shields.io/badge/Next.js-15-black" alt="next.js 15">
+  <img src="https://img.shields.io/badge/Model-llama3.1%3A8b-orange" alt="llama 3.1 8b">
+</p>
+
 A local-first study partner. Upload your course material; get practice questions and
 flashcards drawn **only from it**, with a slide citation on every answer.
 
 Everything runs on your machine. No course material leaves it.
 
+> *"Quiz me on Chapter 2" should ask about Chapter 2 — all of it, not the four pages that
+> happen to say "Chapter 2" the most.*
+
 ---
+
+## Table of contents
+
+- [Why it is built this way](#why-it-is-built-this-way)
+- [What it does](#what-it-does)
+- [How it fits together](#how-it-fits-together)
+- [Quick start](#quick-start)
+- [Bringing your own material](#bringing-your-own-material)
+- [Asking questions about the material](#asking-questions-about-the-material)
+- [Seeing the actual slide](#seeing-the-actual-slide)
+- [Results](#results)
+- [What the validator catches](#what-the-validator-catches)
+- [Swapping the model](#swapping-the-model)
+- [Honest limitations](#honest-limitations)
+- [Layout](#layout)
+- [Project documents](#project-documents)
+- [Contributing](#contributing)
 
 ## Why it is built this way
 
@@ -31,6 +61,48 @@ retrieved chunks alone.
 
 Measured: **100% topic coverage across 5 consecutive quizzes.** Asking about "Distribution
 Design" draws from 59 slides, not the 5 that best match the phrase.
+
+## How it fits together
+
+```mermaid
+flowchart LR
+    subgraph ingest["Ingest — once per file"]
+        F[".pptx / .pdf"] --> P["parse<br/>page-accurate"]
+        P --> C["clean"]
+        C --> K["chunk"]
+        K --> E["embed"]
+    end
+
+    E --> PG[("Postgres<br/>text · pages · topics")]
+    E --> QD[("Qdrant<br/>vectors")]
+
+    subgraph paths["Two retrieval paths — the architecture"]
+        A["<b>Path A · sampler</b><br/>metadata filter +<br/>deterministic sampling"]
+        B["<b>Path B · search</b><br/>vector similarity"]
+    end
+
+    PG --> A
+    PG --> B
+    QD --> B
+
+    A --> G["generate<br/>+ validate"]
+    G --> Q["Quiz · flashcards<br/><i>guaranteed coverage</i>"]
+    B --> X["Explain · chat<br/><i>relevance to a question</i>"]
+
+    Q -.->|"missed questions"| FS["FSRS schedule"]
+
+    classDef store fill:#eef2fe,stroke:#2f5bea,color:#16181d
+    classDef pathA fill:#e8f5ee,stroke:#0f7b52,color:#16181d
+    classDef pathB fill:#fdf4e3,stroke:#a15c07,color:#16181d
+    class PG,QD store
+    class A,G,Q pathA
+    class B,X pathB
+```
+
+**Quiz generation never touches Path B.** That is the single most important line in this
+diagram: a similarity search cannot promise coverage, and coverage is the whole product.
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) walks the same system in plain English with
+eight more diagrams.
 
 ## What it does
 
@@ -224,3 +296,15 @@ a parser that silently flattened every slide onto one page, vector payloads that
 received their topic id so scoping quietly degraded to the whole course, integration tests
 that reported green while skipping, and Symbol-font characters that removed the operators
 from every formula in 63% of the corpus.
+
+
+## Contributing
+
+[`CONTRIBUTING.md`](CONTRIBUTING.md) covers the setup, the checks a change has to pass, and
+the six invariants that constrain the code more than any style guide does. Two conventions
+are worth knowing before you start: quiz generation must never use vector search, and a
+change to generation quality is not accepted without a seeded A/B — two changes have
+already been reverted on measurement rather than opinion.
+
+Security issues: see [`SECURITY.md`](SECURITY.md). RecitAI assumes a single trusted local
+user and has no authentication, so do not expose it to a network you do not control.

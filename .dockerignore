@@ -1,0 +1,28 @@
+# Keep the build context small and free of anything local or secret.
+.git
+.github
+**/__pycache__
+**/*.py[cod]
+**/.venv
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/node_modules
+**/.next
+**/out
+
+# Local state and secrets
+.env
+.env.local
+pgdata/
+qdrant_storage/
+
+# Course material is mounted at runtime, never baked into an image
+materials/
+
+# Docs and planning add nothing to a running image
+docs/
+plan/
+eval/
+*.md
+!README.md

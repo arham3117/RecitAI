@@ -1,0 +1,18 @@
+# Normalise line endings so a clone on Windows does not rewrite every file.
+* text=auto eol=lf
+
+# Binary — never diffed, never line-ending converted.
+*.png   binary
+*.jpg   binary
+*.gif   binary
+*.pdf   binary
+*.pptx  binary
+*.ico   binary
+
+# Lockfiles are generated: keep them out of diffs and out of language stats.
+backend/uv.lock            linguist-generated=true -diff
+frontend/package-lock.json linguist-generated=true -diff
+
+# The build spec is prose, not code — it should not colour the language bar.
+plan/*.md      linguist-documentation
+docs/**        linguist-documentation
