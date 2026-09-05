@@ -83,6 +83,19 @@ Measured: **100% topic coverage across 5 consecutive quizzes.** Asking about Dis
 Design draws from all 64 of its slides, not the two passages that win a similarity contest
 against its name.
 
+## What it does
+
+1. **Ingest** — `.pptx` and `.pdf` become chunks with accurate page attribution.
+2. **Scope** — pick a topic, or type what you want to study.
+3. **Generate** — questions written only from the selected passages, each validated.
+4. **Answer** — a wrong answer immediately returns *why your choice is wrong*, *why the
+   right answer is right*, and the **source passage with its slide number**.
+5. **Retain** — questions you miss become flashcards on an FSRS schedule.
+
+The wrong-answer rationale is generated **with the question, not on demand** — on a local
+8B model, writing it while the student waits costs 3–8 seconds, precisely where
+responsiveness matters most.
+
 ## How it fits together
 
 ```mermaid
@@ -124,19 +137,6 @@ flowchart LR
 diagram: a similarity search cannot promise coverage, and coverage is the whole product.
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) walks the same system in plain English with
 eight more diagrams.
-
-## What it does
-
-1. **Ingest** — `.pptx` and `.pdf` become chunks with accurate page attribution.
-2. **Scope** — pick a topic, or type what you want to study.
-3. **Generate** — questions written only from the selected passages, each validated.
-4. **Answer** — a wrong answer immediately returns *why your choice is wrong*, *why the
-   right answer is right*, and the **source passage with its slide number**.
-5. **Retain** — questions you miss become flashcards on an FSRS schedule.
-
-The wrong-answer rationale is generated **with the question, not on demand** — on a local
-8B model, writing it while the student waits costs 3–8 seconds, precisely where
-responsiveness matters most.
 
 ## Quick start
 
@@ -187,9 +187,9 @@ Asked something the material does not cover, it says so and names what it *does*
 It never falls back on general knowledge, which for a study tool is the difference between
 useful and dangerous.
 
-This is a **v2 feature** (D-018); the spec lists chat mode as out of
-scope for v1, and it was added after all nine phases were complete. It runs on Path B, so
-it does not touch how quizzes are built.
+This is a **v2 feature** (D-018); the spec lists chat mode as out of scope for v1, and it
+was added after all nine phases were complete. It runs on Path B, so it does not touch how
+quizzes are built.
 
 ## Seeing the actual slide
 
@@ -223,7 +223,7 @@ the model is stochastic and the corpus is small.
 | Cited page inside its chunk and document | **100%** |
 | Validator rejection rate | ~50% of first-pass generations |
 | Questions judged student-ready | ~80% |
-| Generation latency | p50 17 s, p95 25 s per question |
+| Generation latency | p50 17–19 s, p95 ~25 s per question |
 | Explanation time-to-first-token | **0.93 s** |
 
 **The validator rejects roughly half of what the model produces.** That is the number
@@ -265,9 +265,8 @@ One environment variable, no code change:
 GEN_MODEL=qwen2.5:14b-instruct-q4_K_M make api
 ```
 
-Qwen 2.5 14B was measured (D-013): better on quality signals —
-first-attempt passes 38% → 50% — but 36% slower with p95 nearly doubled, for one extra
-question. 8B is retained.
+Qwen 2.5 14B was measured (D-013): better on quality signals — first-attempt passes
+38% → 50% — but 36% slower with p95 nearly doubled, for one extra question. 8B is retained.
 
 ## Honest limitations
 
@@ -297,8 +296,8 @@ backend/recitai/
   api/          FastAPI routes and the answer-leak boundary
 eval/           the metrics harness behind every number above
 scripts/        smoke test · vector/row reconciliation
-plan/           the build spec, and the decision and issue logs
 docs/adr/       why the architecture is what it is
+docs/           ARCHITECTURE.md and the full evaluation write-up
 ```
 
 ## Project documents
@@ -319,7 +318,6 @@ Some of what those logs record: a parser that silently flattened every slide ont
 vector payloads that never received their topic id so scoping quietly degraded to the whole
 course, integration tests that reported green while skipping, and Symbol-font characters
 that removed the operators from every formula in 63% of the corpus.
-
 
 ## Contributing
 

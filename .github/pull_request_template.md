@@ -21,7 +21,7 @@
 - [ ] `make eval` still reports topic coverage ≥ 90%
 
 <!-- A quality change without a measurement is an opinion. Two have already been reverted
-     here on measurement: see plan/DECISIONS.md D-013 and plan/ISSUES.md I-029. -->
+     here on measurement: see D-013 and I-029 in the decision and issue logs. -->
 
 ## Logs updated
 

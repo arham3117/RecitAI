@@ -1,10 +1,10 @@
 # Evaluation
 
 Spec §15. Every number here comes from `make eval` or from a controlled run recorded in
-`plan/PROGRESS.md`; nothing is asserted from impression.
+the project's progress log; nothing is asserted from impression.
 
 Corpus: five `.pptx` lecture decks on distributed database systems, 227 slides, 35 chunks.
-Its measured limits are recorded as [I-016] and [I-018] — no speaker notes, and a ceiling
+Its measured limits are recorded as `I-016` and `I-018` — no speaker notes, and a ceiling
 of ~34 generatable chunks.
 
 ## Coverage — the number that proves the design (§15 task 5)
@@ -62,7 +62,7 @@ These three are asserted by `make eval` and fail the report if they ever drop be
 which is the point: I1 is not a target, it is a precondition for persisting anything.
 
 The spec's target of ≥40 student-ready questions from 50 is **not reachable on this
-corpus** and never was: 34 eligible chunks exist ([I-018]). The *rate* meets the implied
+corpus** and never was: 34 eligible chunks exist (`I-018`). The *rate* meets the implied
 80% bar; the absolute count cannot. The sampler reports the shortfall rather than silently
 returning short.
 
@@ -75,7 +75,7 @@ returning short.
 | Embedding share of generation | 0.52% | — |
 | Ingestion, 227 slides → 35 chunks | 2.5 s total | — |
 
-The embedding share was measured rather than assumed ([I-012]): option and stem embeddings
+The embedding share was measured rather than assumed (`I-012`): option and stem embeddings
 cost 87 ms against a ~17 s generation, so batching them would save 0.4% and is not worth
 coupling the validator to dedup.
 
@@ -110,7 +110,7 @@ its eighteen rejections state the marked answer is correct and then reject it.
 | p50 / p95 latency | 18.9 s / 24.9 s | 21.3 s / **44.6 s** |
 | The I-029 arithmetic case | wrong (8) | **wrong (48)** |
 
-**8B retained** ([D-013]). 14B is genuinely better on quality signals but 36% slower for
+**8B retained** (`D-013`). 14B is genuinely better on quality signals but 36% slower for
 one extra question, and does not fix the failure it was tried for — the correct answer is
 32, and it states the right operands before multiplying by six.
 
@@ -143,18 +143,12 @@ would add a model, latency, and a dependency to fix a problem that is not presen
 ## Honest limitations
 
 - **The corpus is small** — 34 generatable chunks, so ~34–70 distinct questions before
-  dedup and the sampler's freshness term work against each other ([I-018]).
-- **No speaker notes** ([I-016]), so distractors are built from bullet text alone.
+  dedup and the sampler's freshness term work against each other (`I-018`).
+- **No speaker notes** (`I-016`), so distractors are built from bullet text alone.
 - **12% of slides are diagram-only** and are invisible to a text pipeline; OCR is deferred.
-- **~9% of questions have two defensible answers** ([I-028]) where no superlative gives the
+- **~9% of questions have two defensible answers** (`I-028`) where no superlative gives the
   construction away. The judge is the only thing that could catch those, and the measured
   attempt to sharpen it over-fired.
 - **The groundedness audit uses lexical overlap**, which is a weak proxy for entailment. It
   catches an explanation about something the passage never mentions; it would not catch a
   fluent misreading.
-
-[I-012]: ../plan/ISSUES.md
-[I-016]: ../plan/ISSUES.md
-[I-018]: ../plan/ISSUES.md
-[I-028]: ../plan/ISSUES.md
-[D-013]: ../plan/DECISIONS.md

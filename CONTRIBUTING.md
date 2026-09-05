@@ -52,7 +52,7 @@ All of these must pass. Two notes on the frontend:
   411 changed lines where 245 were real, and no `printWidth` reproduces the committed
   style. `tsc --noEmit` and `next build` are the gates.
 - The API tests run against a **live** service and database by design — `TestClient`
-  collides with the async engine-disposal fixture (see `plan/ISSUES.md` I-026). Anything a
+  collides with the async engine-disposal fixture (issue `I-026`). Anything a
   test creates must be cleaned up; use the `scratch_course` fixture.
 
 ## Conventions
