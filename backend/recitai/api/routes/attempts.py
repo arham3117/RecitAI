@@ -28,6 +28,7 @@ from recitai.db.models import (
     Course,
     Document,
     Question,
+    Quiz,
     TopicMastery,
 )
 from recitai.db.session import session_scope
@@ -76,12 +77,18 @@ def _material_path(filename: str) -> Path | None:
 
 class AttemptIn(BaseModel):
     quiz_id: uuid.UUID
+    #: Discard an unfinished attempt and begin again.
+    restart: bool = False
 
 
 class AttemptOut(BaseModel):
     id: uuid.UUID
     quiz_id: uuid.UUID
     started_at: datetime
+    #: Questions already answered in this attempt, so the client can pick up where the
+    #: student left off rather than starting again.
+    answered_question_ids: list[uuid.UUID] = Field(default_factory=list)
+    resumed: bool = False
 
 
 class SlideOut(BaseModel):
@@ -143,7 +150,51 @@ def split_passage_by_slide(text: str, page_start: int, page_end: int) -> list[Sl
 
 @router.post("/attempts", response_model=AttemptOut, status_code=201)
 async def start_attempt(payload: AttemptIn) -> AttemptOut:
+    """Resume an unfinished attempt, or begin a new one.
+
+    Leaving a quiz part-way used to strand the answers: coming back created a fresh
+    attempt at question one, and re-answering the same questions updated `topic_mastery`
+    a second time — so abandoning a quiz quietly skewed the sampler's weakness term.
+    Resuming is therefore the default, and starting over is the explicit choice.
+    """
     async with session_scope() as session:
+        quiz = await session.get(Quiz, payload.quiz_id)
+        if quiz is None:
+            raise HTTPException(404, f"no quiz {payload.quiz_id}")
+        total = await session.scalar(
+            select(func.count()).select_from(Question).where(Question.quiz_id == payload.quiz_id)
+        )
+
+        existing = None
+        if not payload.restart:
+            existing = await session.scalar(
+                select(Attempt)
+                .where(Attempt.quiz_id == payload.quiz_id, Attempt.completed_at.is_(None))
+                .order_by(Attempt.started_at.desc())
+                .limit(1)
+            )
+
+        if existing is not None:
+            answered = list(
+                (
+                    await session.execute(
+                        select(Answer.question_id).where(Answer.attempt_id == existing.id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            # An attempt with every question answered is finished in all but name; a new
+            # run should start clean rather than resume into nothing.
+            if len(answered) < int(total or 0):
+                return AttemptOut(
+                    id=existing.id,
+                    quiz_id=existing.quiz_id,
+                    started_at=existing.started_at,
+                    answered_question_ids=answered,
+                    resumed=len(answered) > 0,
+                )
+
         attempt = Attempt(quiz_id=payload.quiz_id)
         session.add(attempt)
         await session.flush()
@@ -275,6 +326,37 @@ async def slide_image(document_id: uuid.UUID, page: int) -> Response:
         media_type="image/png",
         headers={"Cache-Control": "public, max-age=86400"},
     )
+
+
+@router.get("/quizzes/{quiz_id}/progress")
+async def quiz_progress(quiz_id: uuid.UUID) -> dict[str, object]:
+    """How far through this quiz the student is, if they are part-way."""
+    async with session_scope() as session:
+        total = int(
+            await session.scalar(
+                select(func.count()).select_from(Question).where(Question.quiz_id == quiz_id)
+            )
+            or 0
+        )
+        attempt = await session.scalar(
+            select(Attempt)
+            .where(Attempt.quiz_id == quiz_id, Attempt.completed_at.is_(None))
+            .order_by(Attempt.started_at.desc())
+            .limit(1)
+        )
+        answered = 0
+        if attempt is not None:
+            answered = int(
+                await session.scalar(
+                    select(func.count()).select_from(Answer).where(Answer.attempt_id == attempt.id)
+                )
+                or 0
+            )
+    return {
+        "total": total,
+        "answered": answered if answered < total else 0,
+        "in_progress": 0 < answered < total,
+    }
 
 
 @router.get("/attempts/{attempt_id}/results")

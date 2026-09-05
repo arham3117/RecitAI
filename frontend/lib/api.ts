@@ -53,8 +53,13 @@ export const api = {
   }) => req<Job>("/quizzes", { method: "POST", body: JSON.stringify(body) }),
   job: (jobId: string) => req<Job>(`/jobs/${jobId}`),
 
-  startAttempt: (quizId: string) =>
-    req<{ id: string }>("/attempts", { method: "POST", body: JSON.stringify({ quiz_id: quizId }) }),
+  startAttempt: (quizId: string, restart = false) =>
+    req<{ id: string; answered_question_ids: string[]; resumed: boolean }>("/attempts", {
+      method: "POST",
+      body: JSON.stringify({ quiz_id: quizId, restart }),
+    }),
+  quizProgress: (quizId: string) =>
+    req<{ total: number; answered: number; in_progress: boolean }>(`/quizzes/${quizId}/progress`),
   answer: (attemptId: string, questionId: string, optionId: string, timeTakenMs?: number) =>
     req<AnswerResult>(`/attempts/${attemptId}/answers`, {
       method: "POST",

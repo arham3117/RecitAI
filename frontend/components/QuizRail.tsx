@@ -13,6 +13,7 @@ export function QuizRail({
   deck,
   selectedCount,
   coverage,
+  progress,
   busy,
   onGenerate,
   onStart,
@@ -24,9 +25,10 @@ export function QuizRail({
   deck: DeckStats | null;
   selectedCount: number;
   coverage: Coverage | null;
+  progress: { answered: number; total: number } | null;
   busy: boolean;
   onGenerate: () => void;
-  onStart: (quizId: string) => void;
+  onStart: (quizId: string, restart?: boolean) => void;
   onReview: () => void;
   onUploaded: () => void;
 }) {
@@ -95,29 +97,46 @@ export function QuizRail({
       {/* Secondary actions are compact rows, not full cards. Four stacked cards ran past
           the bottom of the window, which put "add material" somewhere nobody would find. */}
       {quizzes.length > 0 && (
-        <button
-          onClick={() => onStart(quizzes[0].id)}
-          className="flex w-full items-center gap-3 rounded-card border border-line
-                     bg-paper-raised p-3 text-left hover:border-line-strong"
+        <div
+          className="rounded-card border border-line bg-paper-raised
+                     hover:border-line-strong"
         >
-          <span className="min-w-0 flex-1">
-            <span className="block text-small font-medium">
-              Start ready quiz · {quizzes[0].question_count} questions
+          <button
+            onClick={() => onStart(quizzes[0].id)}
+            className="flex w-full items-center gap-3 p-3 text-left"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block text-small font-medium">
+                {progress
+                  ? `Resume quiz · ${progress.answered} of ${progress.total} answered`
+                  : `Start ready quiz · ${quizzes[0].question_count} questions`}
+              </span>
+              <span className="block text-[11.5px] text-ink-muted">
+                {new Date(quizzes[0].created_at).toLocaleDateString()}
+                {typeof quizzes[0].generation_meta?.validator_pass_rate === "number" && (
+                  <>
+                    {" · "}
+                    {Math.round(
+                      (quizzes[0].generation_meta.validator_pass_rate as number) * 100,
+                    )}
+                    % passed the validator
+                  </>
+                )}
+              </span>
             </span>
-            <span className="block text-[11.5px] text-ink-muted">
-              {new Date(quizzes[0].created_at).toLocaleDateString()}
-              {typeof quizzes[0].generation_meta?.validator_pass_rate === "number" && (
-                <>
-                  {" · "}
-                  {Math.round(
-                    (quizzes[0].generation_meta.validator_pass_rate as number) * 100,
-                  )}
-                  % passed the validator
-                </>
-              )}
-            </span>
-          </span>
-        </button>
+          </button>
+          {/* Resuming is the default, so starting again has to be reachable — but quietly,
+              since it throws away answers already given. */}
+          {progress && (
+            <button
+              onClick={() => onStart(quizzes[0].id, true)}
+              className="w-full border-t border-line px-3 py-2 text-left text-[11.5px]
+                         text-ink-muted hover:text-ink"
+            >
+              Start over from the first question
+            </button>
+          )}
+        </div>
       )}
 
       {deck && deck.due > 0 && (

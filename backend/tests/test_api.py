@@ -233,3 +233,45 @@ def test_a_new_course_starts_empty_and_isolated(client: httpx.Client) -> None:
     assert course["chunk_count"] == 0
     assert client.get(f"/api/courses/{course['id']}/topics").json() == []
     assert client.get(f"/api/courses/{course['id']}/quizzes").json() == []
+
+
+def test_leaving_a_quiz_and_returning_resumes_it(client: httpx.Client) -> None:
+    """Leaving part-way must not strand the answers.
+
+    Coming back used to create a fresh attempt at question one, so the same questions were
+    answered twice and counted twice against `topic_mastery` — quietly skewing the
+    sampler's weakness term for anyone who ever abandoned a quiz.
+    """
+    _db_or_skip(client)
+    courses = client.get("/api/courses").json()
+    if not courses:
+        pytest.skip("no ingested course")
+    quizzes = client.get(f"/api/courses/{courses[0]['id']}/quizzes").json()
+    if not quizzes:
+        pytest.skip("no generated quiz")
+    quiz = client.get(f"/api/quizzes/{quizzes[0]['id']}").json()
+    if len(quiz["questions"]) < 2:
+        pytest.skip("resume needs a quiz of at least two questions")
+
+    # Start clean, answer one, and walk away.
+    first = client.post("/api/attempts", json={"quiz_id": quiz["id"], "restart": True}).json()
+    client.post(
+        f"/api/attempts/{first['id']}/answers",
+        json={"question_id": quiz["questions"][0]["id"], "selected_option_id": "A"},
+    ).raise_for_status()
+
+    resumed = client.post("/api/attempts", json={"quiz_id": quiz["id"]}).json()
+    assert resumed["id"] == first["id"], "returning must continue the same attempt"
+    assert resumed["resumed"] is True
+    assert quiz["questions"][0]["id"] in resumed["answered_question_ids"]
+
+    progress = client.get(f"/api/quizzes/{quiz['id']}/progress").json()
+    assert progress["in_progress"] is True
+    assert progress["answered"] == 1
+    assert progress["total"] == len(quiz["questions"])
+
+    # Starting over is still available, and gives a genuinely new attempt.
+    fresh = client.post("/api/attempts", json={"quiz_id": quiz["id"], "restart": True}).json()
+    assert fresh["id"] != first["id"]
+    assert fresh["answered_question_ids"] == []
+    assert fresh["resumed"] is False

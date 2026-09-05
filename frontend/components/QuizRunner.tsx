@@ -9,15 +9,18 @@ import { ExplanationPanel } from "./ExplanationPanel";
 export function QuizRunner({
   quiz,
   attemptId,
+  startIndex = 0,
   onFinish,
   onExit,
 }: {
   quiz: PublicQuiz;
   attemptId: string;
+  /** Where a resumed attempt picks up — the first question with no answer on record. */
+  startIndex?: number;
   onFinish: () => void;
   onExit: () => void;
 }) {
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(startIndex);
   const [selected, setSelected] = useState<string | null>(null);
   const [result, setResult] = useState<AnswerResult | null>(null);
   const [submitting, setSubmitting] = useState(false);

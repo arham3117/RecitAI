@@ -25,7 +25,7 @@ import type {
 type View =
   | { name: "library" }
   | { name: "generating"; detail: string; progress: number; total: number }
-  | { name: "quiz"; quiz: PublicQuiz; attemptId: string }
+  | { name: "quiz"; quiz: PublicQuiz; attemptId: string; startIndex: number }
   | { name: "results"; results: AttemptResults; cardsAdded: number }
   | { name: "review"; cards: Flashcard[] }
   | { name: "error"; message: string };
@@ -36,6 +36,8 @@ export default function Page() {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [quizzes, setQuizzes] = useState<QuizSummary[]>([]);
+  /** An unfinished attempt on the newest quiz, so the rail can offer to resume it. */
+  const [progress, setProgress] = useState<{ answered: number; total: number } | null>(null);
   const [deck, setDeck] = useState<DeckStats | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [view, setView] = useState<View>({ name: "library" });
@@ -63,6 +65,9 @@ export default function Page() {
     setDocuments(d);
     setQuizzes(q);
     setDeck(s);
+    setProgress(
+      q.length ? await api.quizProgress(q[0].id).then((p) => (p.in_progress ? p : null)) : null,
+    );
     setLoading(false);
   }, [course?.id]);
 
@@ -96,9 +101,22 @@ export default function Page() {
     };
   }, [course, selected]);
 
-  const startQuiz = useCallback(async (quizId: string) => {
-    const [quiz, attempt] = await Promise.all([api.quiz(quizId), api.startAttempt(quizId)]);
-    setView({ name: "quiz", quiz, attemptId: attempt.id });
+  const startQuiz = useCallback(async (quizId: string, restart = false) => {
+    const [quiz, attempt] = await Promise.all([
+      api.quiz(quizId),
+      api.startAttempt(quizId, restart),
+    ]);
+    // Resume where they stopped: the first question with no answer on record. Answering
+    // a question twice would count it twice against topic mastery.
+    const done = new Set(attempt.answered_question_ids);
+    const first = quiz.questions.findIndex((q) => !done.has(q.id));
+    setView({
+      name: "quiz",
+      quiz,
+      attemptId: attempt.id,
+      startIndex: first < 0 ? 0 : first,
+    });
+    setProgress(null);
   }, []);
 
   const generate = useCallback(
@@ -224,7 +242,8 @@ export default function Page() {
               busy={false}
               coverage={coverage}
               onGenerate={() => void generate()}
-              onStart={(id) => void startQuiz(id)}
+              progress={progress}
+              onStart={(id, restart) => void startQuiz(id, restart)}
               onReview={() => void review()}
               onUploaded={() => void refresh(course.id)}
             />
@@ -261,6 +280,7 @@ export default function Page() {
           <QuizRunner
             quiz={view.quiz}
             attemptId={view.attemptId}
+            startIndex={view.startIndex}
             onFinish={() => void finishQuiz(view.attemptId)}
             onExit={() => setView({ name: "library" })}
           />
