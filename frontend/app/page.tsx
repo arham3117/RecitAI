@@ -12,6 +12,7 @@ import { SkeletonQuestion } from "@/components/Skeleton";
 import { api } from "@/lib/api";
 import type {
   AttemptResults,
+  Coverage,
   Course,
   DeckStats,
   DocumentSummary,
@@ -79,21 +80,38 @@ export default function Page() {
     return () => clearInterval(timer);
   }, [ingesting, course, refresh]);
 
+  // What a quiz over the current selection would cover. Refetched when the scope changes,
+  // so the rail always describes what the button will actually do.
+  const [coverage, setCoverage] = useState<Coverage | null>(null);
+  useEffect(() => {
+    if (!course) return;
+    let cancelled = false;
+    setCoverage(null);
+    api
+      .coverage(course.id, [...selected])
+      .then((c) => !cancelled && setCoverage(c))
+      .catch(() => !cancelled && setCoverage({ concepts: 0, topics: 0, estimated_seconds: 0 }));
+    return () => {
+      cancelled = true;
+    };
+  }, [course, selected]);
+
   const startQuiz = useCallback(async (quizId: string) => {
     const [quiz, attempt] = await Promise.all([api.quiz(quizId), api.startAttempt(quizId)]);
     setView({ name: "quiz", quiz, attemptId: attempt.id });
   }, []);
 
   const generate = useCallback(
-    async (n: number, query: string) => {
+    async () => {
       if (!course) return;
-      setView({ name: "generating", detail: "starting…", progress: 0, total: n });
+      // No question count: the quiz covers the concepts in the selection, so its length
+      // follows the material.
+      const total = coverage?.concepts ?? 0;
+      setView({ name: "generating", detail: "starting…", progress: 0, total });
       try {
         const job = await api.createQuiz({
           course_id: course.id,
-          n,
           topic_ids: selected.size ? [...selected] : undefined,
-          query: !selected.size && query.trim() ? query.trim() : undefined,
         });
         // Poll rather than hold a connection open for minutes (§12).
         for (;;) {
@@ -103,7 +121,7 @@ export default function Page() {
             name: "generating",
             detail: status.detail || status.status,
             progress: status.progress,
-            total: status.total || n,
+            total: status.total || total,
           });
           if (status.status === "complete" && status.result_id) {
             await startQuiz(status.result_id);
@@ -118,7 +136,7 @@ export default function Page() {
         setView({ name: "error", message: e instanceof Error ? e.message : String(e) });
       }
     },
-    [course, selected, startQuiz],
+    [course, selected, startQuiz, coverage],
   );
 
   const finishQuiz = useCallback(
@@ -176,13 +194,19 @@ export default function Page() {
         onReview={() => void review()}
       />
 
-      <main className="max-w-[1180px] px-10 py-9">
+      {/* The library needs room for chat plus the rail; a quiz or a card is one column of
+          reading, and long measure makes options harder to scan. */}
+      <main
+        className={`px-10 py-9 ${
+          view.name === "quiz" || view.name === "review" ? "max-w-3xl" : "max-w-7xl"
+        }`}
+      >
         {view.name === "library" && (!course || course.chunk_count === 0) && !loading && (
           <EmptyCourse course={course} onUploaded={() => void refresh(course?.id)} />
         )}
 
         {view.name === "library" && course && course.chunk_count > 0 && (
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_268px]">
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_264px]">
             <Chat
               courseId={course.id}
               topicIds={[...selected]}
@@ -198,7 +222,8 @@ export default function Page() {
               deck={deck}
               selectedCount={selected.size}
               busy={false}
-              onGenerate={(n) => void generate(n, "")}
+              coverage={coverage}
+              onGenerate={() => void generate()}
               onStart={(id) => void startQuiz(id)}
               onReview={() => void review()}
               onUploaded={() => void refresh(course.id)}
@@ -237,6 +262,7 @@ export default function Page() {
             quiz={view.quiz}
             attemptId={view.attemptId}
             onFinish={() => void finishQuiz(view.attemptId)}
+            onExit={() => setView({ name: "library" })}
           />
         )}
 

@@ -107,6 +107,12 @@ export type DeckStats = {
   due: number;
 };
 
+export type Coverage = {
+  concepts: number;
+  topics: number;
+  estimated_seconds: number;
+};
+
 export type ChatSource = {
   n: number;
   page_start: number;

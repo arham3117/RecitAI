@@ -190,11 +190,27 @@ async def _load_stats(scope: Scope) -> tuple[list[TopicStats], dict[uuid.UUID, l
 
 
 async def sample_chunks(
-    scope: Scope, n: int, seed: int | None = None
+    scope: Scope, n: int | None = None, seed: int | None = None
 ) -> tuple[list[ChunkRef], SamplingReport]:
-    """§3.3. Returns the selected chunks and a report of how they were chosen."""
+    """§3.3. Returns the selected chunks and a report of how they were chosen.
+
+    `n = None` means **cover the scope**: one passage per concept in it, so the length of a
+    quiz is a property of the material rather than a number the student had to guess. This
+    is the natural reading of Path A — §3.1 exists to guarantee full coverage of a scope,
+    and asking for "20 questions" was always an arbitrary cap on top of that.
+
+    A passage *is* a concept here: chunking merges consecutive slides into coherent units
+    of roughly `TARGET_CHUNK_TOKENS`, so the units already are the ideas the material
+    covers. Passages too thin to support a question are filtered twice over — by
+    `MIN_CHUNK_TOKENS_FOR_GENERATION` here, and by the model's own `{"insufficient": true}`
+    response during generation (§6.1).
+    """
     stats, by_topic = await _load_stats(scope)
-    report = SamplingReport(requested=n, delivered=0, topics_in_scope=len(stats), topics_covered=0)
+    total_eligible = sum(s.chunk_count for s in stats)
+    requested = n if n is not None else total_eligible
+    report = SamplingReport(
+        requested=requested, delivered=0, topics_in_scope=len(stats), topics_covered=0
+    )
 
     if not stats:
         report.shortfall_reason = (
@@ -203,9 +219,9 @@ async def sample_chunks(
         )
         return [], report
 
-    weights = compute_weights(stats)
     capacity = {s.topic_id: s.chunk_count for s in stats}
-    allocation = allocate(weights, n, capacity)
+    # Covering the scope needs no allocation, because nothing is being left out.
+    allocation = dict(capacity) if n is None else allocate(compute_weights(stats), n, capacity)
 
     rng = random.Random(seed)
     selected: list[ChunkRef] = []
@@ -231,11 +247,11 @@ async def sample_chunks(
     report.delivered = len(selected)
     report.topics_covered = len({c.topic_id for c in selected})
     report.allocation = {str(k): v for k, v in allocation.items()}
-    if len(selected) < n:
+    if len(selected) < requested:
         available = sum(capacity.values())
         report.shortfall_reason = (
-            f"scope holds {available} eligible chunks; {n} requested"
-            if available < n
+            f"scope holds {available} eligible passages; {requested} requested"
+            if available < requested
             else "allocation could not place every question"
         )
 
@@ -249,6 +265,16 @@ async def sample_chunks(
         seed=seed,
     )
     return selected, report
+
+
+async def scope_size(scope: Scope) -> tuple[int, int]:
+    """How many concepts a scope holds, and across how many topics.
+
+    Used to tell the student what a quiz will cover *before* generating it — the length is
+    determined by the material, so it should be visible in advance rather than a surprise.
+    """
+    stats, _ = await _load_stats(scope)
+    return sum(s.chunk_count for s in stats), len(stats)
 
 
 async def increment_usage(chunk_ids: list[uuid.UUID]) -> None:

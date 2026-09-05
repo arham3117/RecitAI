@@ -49,7 +49,10 @@ export function CourseSwitcher({
                    bg-paper px-2.5 py-2 text-left hover:border-line-strong"
       >
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-small font-medium">
+          <span
+            className="block text-small font-medium leading-snug"
+            title={active?.name}
+          >
             {active ? active.name : "No course yet"}
           </span>
           {active && (

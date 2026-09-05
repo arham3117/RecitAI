@@ -52,16 +52,33 @@ export function FlashcardReviewer({
 
   return (
     <div>
-      <div className="mb-6 h-[3px] overflow-hidden rounded-sm bg-line">
-        <div
-          className="h-full bg-accent transition-all duration-300"
-          style={{ width: `${(index / cards.length) * 100}%` }}
-        />
-      </div>
-      <div className="mb-3.5 flex items-center justify-between gap-3">
-        <span className="text-small text-ink-muted">
-          Card {index + 1} of {cards.length}
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <button
+          onClick={onDone}
+          className="-ml-1 flex items-center gap-1.5 rounded-control px-1.5 py-1 text-small
+                     text-ink-muted hover:bg-paper-raised hover:text-ink"
+        >
+          <svg viewBox="0 0 10 10" aria-hidden="true" className="h-2.5 w-2.5">
+            <path d="M6.5 1.5 L3 5 L6.5 8.5" fill="none" stroke="currentColor" strokeWidth="1.6"
+                  strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Done for now
+        </button>
+        <span className="text-small tabular-nums text-ink-muted">
+          {index + 1} of {cards.length}
         </span>
+      </div>
+      <div className="mb-5 flex gap-1" aria-hidden="true">
+        {cards.map((_, i) => (
+          <div
+            key={i}
+            className={`h-[3px] flex-1 rounded-sm ${
+              i < index ? "bg-accent" : i === index ? "bg-accent/45" : "bg-line"
+            }`}
+          />
+        ))}
+      </div>
+      <div className="mb-3.5 flex items-center justify-end gap-3">
         <span className="rounded-full border border-line bg-paper px-2.5 py-0.5 text-small text-ink-muted">
           {card.origin === "missed_question" ? "from a question you missed" : "generated"}
         </span>

@@ -1,6 +1,7 @@
 import type {
   AnswerResult,
   ChatSource,
+  Coverage,
   AttemptResults,
   Course,
   DeckStats,
@@ -38,11 +39,16 @@ export const api = {
   quizzes: (courseId: string) => req<QuizSummary[]>(`/courses/${courseId}/quizzes`),
   quiz: (quizId: string) => req<PublicQuiz>(`/quizzes/${quizId}`),
 
+  /** What a quiz over this selection would cover, before committing to generating it. */
+  coverage: (courseId: string, topicIds: string[] = []) =>
+    req<Coverage>(`/courses/${courseId}/coverage?topic_ids=${topicIds.join(",")}`),
+
+  /** `n` omitted means "cover the scope" — the length follows the material. */
   createQuiz: (body: {
     course_id: string;
     topic_ids?: string[];
     query?: string;
-    n: number;
+    n?: number;
     difficulty?: string;
   }) => req<Job>("/quizzes", { method: "POST", body: JSON.stringify(body) }),
   job: (jobId: string) => req<Job>(`/jobs/${jobId}`),

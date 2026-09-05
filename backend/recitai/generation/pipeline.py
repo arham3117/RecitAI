@@ -80,7 +80,7 @@ class GenerationRun:
 
 async def generate_quiz(
     scope: Scope,
-    n: int,
+    n: int | None,
     client: LLMClient,
     *,
     difficulty: Difficulty = "recall",
@@ -89,7 +89,7 @@ async def generate_quiz(
     run_judge_checks: bool = True,
 ) -> GenerationRun:
     started = time.perf_counter()
-    run = GenerationRun(requested=n)
+    run = GenerationRun(requested=n or 0)
 
     async with session_scope() as session:
         course = await session.get(Course, scope.course_id)
@@ -99,6 +99,7 @@ async def generate_quiz(
 
     # Path A. Oversample so rejected chunks have replacements (§5.3).
     chunks, sampling = await sample_chunks(scope, n, seed=seed)
+    run.requested = sampling.requested
     run.sampler_shortfall = sampling.shortfall_reason
     if not chunks:
         run.duration_ms = int((time.perf_counter() - started) * 1000)
@@ -111,7 +112,7 @@ async def generate_quiz(
     prompt_version = "v1"
 
     for chunk in chunks:
-        if len(accepted) >= n:
+        if n is not None and len(accepted) >= n:
             break
         outcome = await generate_question(
             chunk,

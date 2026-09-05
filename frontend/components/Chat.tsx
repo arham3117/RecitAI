@@ -94,11 +94,13 @@ export function Chat({
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-140px)] flex-col">
-      <div className="flex-1">
+    <div className="flex min-h-[calc(100vh-9rem)] flex-col">
+      <div className={turns.length === 0 ? "" : "flex-1"}>
         {turns.length === 0 ? (
           <div className="pt-4">
-            <h1 className="text-display font-semibold">Ask about your material</h1>
+            <h1 className="text-[1.6rem] font-semibold leading-tight tracking-tight">
+              Ask about your material
+            </h1>
             <p className="mt-1.5 max-w-[60ch] text-ink-muted">
               Answers come only from your own slides, with the passage and slide number
               they came from. If your material does not cover something, it will say so
@@ -146,7 +148,13 @@ export function Chat({
         <div ref={endRef} />
       </div>
 
-      <div className="sticky bottom-0 -mx-2 mt-6 bg-paper/85 px-2 pb-5 pt-3 backdrop-blur">
+      {/* When the conversation is empty the composer sits under the prompts rather than
+          being pushed to the bottom of an empty screen. */}
+      <div
+        className={`sticky bottom-0 -mx-2 px-2 pb-5 pt-3 ${
+          turns.length === 0 ? "mt-6" : "mt-6 bg-paper/85 backdrop-blur"
+        }`}
+      >
         <div className="flex items-end gap-2 rounded-[14px] border border-line bg-paper-raised p-2 focus-within:border-accent">
           <textarea
             value={draft}

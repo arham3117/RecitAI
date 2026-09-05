@@ -110,7 +110,7 @@
   <main id="main"></main>
 </div>
 <script>
-const API="/api"; let S={course:null,topics:[],sel:new Set(),quiz:null,attempt:null,i:0,answers:[]};
+const API="/api"; let S={course:null,topics:[],sel:new Set(),quiz:null,attempt:null,i:0,answers:[],coverage:null};
 const $=(h)=>{const d=document.createElement("div");d.innerHTML=h.trim();return d.firstElementChild};
 const esc=(s)=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
@@ -200,13 +200,12 @@ async function home(){
   m.innerHTML=`<h1>What do you want to practice?</h1>
     <p class="sub">Questions are drawn only from your material, and every answer cites the slide it came from.</p>
     <div class="card">
-      <div class="row">
-        <label class="muted" style="font-size:13.5px">Questions</label>
-        <input id="n" type="number" value="5" min="1" max="20" style="width:64px;padding:8px;border:1px solid var(--line);border-radius:8px;font:inherit">
-        <button class="primary" id="go">Generate new</button>
+      <div id="cov" class="muted" style="font-size:13.5px">counting concepts…</div>
+      <div class="row" style="margin-top:12px">
+        <button class="primary" id="go">Quiz me on this</button>
         <span class="muted" style="font-size:12.5px">${S.sel.size?`${S.sel.size} topic(s) selected`:"whole course"}</span>
       </div>
-      <p class="muted" style="font-size:12.5px;margin:14px 0 0">Generation runs locally and takes roughly 20 seconds per question.</p>
+      <p class="muted" style="font-size:12.5px;margin:14px 0 0">One question per concept in the selected material, generated locally.</p>
     </div>
     ${quizzes.length?`<h2 style="margin-top:30px">Ready now</h2>
       <div class="card"><div class="row" style="justify-content:space-between">
@@ -217,13 +216,22 @@ async function home(){
     <p class="disclaimer">RecitAI can make mistakes. Verify important facts against the source.</p>`;
   const st=document.getElementById("start"); if(st)st.onclick=()=>startQuiz(quizzes[0].id);
   document.getElementById("go").onclick=generate;
+  // The quiz covers the concepts in the selection, so say what that is before generating.
+  fetch(`${API}/courses/${S.course.id}/coverage?topic_ids=${[...S.sel].join(",")}`)
+    .then(r=>r.json()).then(c=>{
+      S.coverage=c;
+      document.getElementById("cov").innerHTML = c.concepts
+        ? `<b style="color:var(--ink)">${c.concepts} concept${c.concepts===1?"":"s"}</b> across ${c.topics} topic${c.topics===1?"":"s"} · about ${Math.max(1,Math.round(c.estimated_seconds/60))} min to generate`
+        : "Nothing to quiz on in this selection yet.";
+    }).catch(()=>{});
 }
 async function generate(){
-  const n=+document.getElementById("n").value;
+  const n=(S.coverage&&S.coverage.concepts)||0;
   const m=document.getElementById("main");
   m.innerHTML=`<h1>Generating</h1><p class="sub" id="d">starting…</p><div class="prog"><i id="b" style="width:4%"></i></div>
     <p class="muted" style="font-size:13px">Each question is generated from a passage, then checked for length bias, near-duplicate options, answer leakage and groundedness. Rejected questions are regenerated.</p>`;
-  const body={course_id:S.course.id,n,difficulty:"recall"};
+  // No question count: the scope decides the length.
+  const body={course_id:S.course.id,difficulty:"recall"};
   if(S.sel.size)body.topic_ids=[...S.sel];
   const job=await (await fetch(`${API}/quizzes`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)})).json();
   const t=setInterval(async()=>{

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { uploadDocument } from "@/lib/api";
-import type { Course, DeckStats, QuizSummary } from "@/lib/types";
+import type { Coverage, Course, DeckStats, QuizSummary } from "@/lib/types";
 
 /** The quiz controls, alongside the chat rather than instead of it. Chat is for
  *  understanding something now; a quiz is for finding out what you do not know — they are
@@ -12,6 +12,7 @@ export function QuizRail({
   quizzes,
   deck,
   selectedCount,
+  coverage,
   busy,
   onGenerate,
   onStart,
@@ -22,13 +23,13 @@ export function QuizRail({
   quizzes: QuizSummary[];
   deck: DeckStats | null;
   selectedCount: number;
+  coverage: Coverage | null;
   busy: boolean;
-  onGenerate: (n: number) => void;
+  onGenerate: () => void;
   onStart: (quizId: string) => void;
   onReview: () => void;
   onUploaded: () => void;
 }) {
-  const [n, setN] = useState(5);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -43,86 +44,119 @@ export function QuizRail({
   }
 
   return (
-    <aside className="space-y-3 lg:sticky lg:top-6">
-      <section className="card">
+    // Sticky, but scrollable within the viewport: the rail used to run past the bottom of
+    // the window and the last card was simply unreachable.
+    <aside className="space-y-3 lg:sticky lg:top-9 lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto lg:pb-2">
+      <section className="card !p-4">
         <h2 className="label">Practice</h2>
-        <p className="mt-2 text-small text-ink-muted">
-          {selectedCount > 0
-            ? `${selectedCount} topic${selectedCount > 1 ? "s" : ""} selected`
-            : "Whole course — pick topics on the left to narrow it"}
-        </p>
-        <div className="mt-3 flex items-center gap-2">
-          <input
-            type="number"
-            min={1}
-            max={20}
-            value={n}
-            onChange={(e) => setN(Number(e.target.value))}
-            aria-label="Number of questions"
-            className="w-16 rounded-control border border-line bg-paper px-2 py-1.5"
-          />
-          <button className="btn btn-primary flex-1" disabled={busy} onClick={() => onGenerate(n)}>
-            {busy ? "Generating…" : "Generate quiz"}
-          </button>
-        </div>
+
+        {/* A quiz covers the concepts in the selected material — its length follows the
+            material rather than a number the student had to invent. Showing what will be
+            covered before generating keeps that from being a surprise. */}
+        {coverage === null ? (
+          <div className="mt-3 space-y-2">
+            <div className="skeleton h-4 w-32" />
+            <div className="skeleton h-4 w-24" />
+          </div>
+        ) : coverage.concepts === 0 ? (
+          <p className="mt-2 text-small text-ink-muted">
+            Nothing to quiz on in this selection yet.
+          </p>
+        ) : (
+          <>
+            <p className="mt-2">
+              <b>
+                {coverage.concepts} concept{coverage.concepts === 1 ? "" : "s"}
+              </b>
+              <span className="text-ink-muted">
+                {" "}
+                in {selectedCount > 0 ? "your selection" : "this course"}
+              </span>
+            </p>
+            <p className="text-small text-ink-muted">
+              across {coverage.topics} topic{coverage.topics === 1 ? "" : "s"} · about{" "}
+              {Math.max(1, Math.round(coverage.estimated_seconds / 60))} min to generate
+            </p>
+          </>
+        )}
+
+        <button
+          className="btn btn-primary mt-3 w-full"
+          disabled={busy || !coverage || coverage.concepts === 0}
+          onClick={onGenerate}
+        >
+          {busy ? "Generating…" : "Quiz me on this"}
+        </button>
         <p className="mt-2.5 text-small text-ink-muted">
-          Roughly 20 seconds per question, generated locally.
+          One question per concept, generated locally. Pick topics on the left to narrow it.
         </p>
       </section>
 
+      {/* Secondary actions are compact rows, not full cards. Four stacked cards ran past
+          the bottom of the window, which put "add material" somewhere nobody would find. */}
       {quizzes.length > 0 && (
-        <section className="card">
-          <h2 className="label">Ready now</h2>
-          <p className="mt-2">
-            <b>{quizzes[0].question_count} questions</b>
-          </p>
-          <p className="text-small text-ink-muted">
-            {new Date(quizzes[0].created_at).toLocaleDateString()}
-            {typeof quizzes[0].generation_meta?.validator_pass_rate === "number" && (
-              <>
-                {" · "}
-                {Math.round((quizzes[0].generation_meta.validator_pass_rate as number) * 100)}%
-                passed the validator
-              </>
-            )}
-          </p>
-          <button className="btn mt-3 w-full" onClick={() => onStart(quizzes[0].id)}>
-            Start quiz
-          </button>
-        </section>
+        <button
+          onClick={() => onStart(quizzes[0].id)}
+          className="flex w-full items-center gap-3 rounded-card border border-line
+                     bg-paper-raised p-3 text-left hover:border-line-strong"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block text-small font-medium">
+              Start ready quiz · {quizzes[0].question_count} questions
+            </span>
+            <span className="block text-[11.5px] text-ink-muted">
+              {new Date(quizzes[0].created_at).toLocaleDateString()}
+              {typeof quizzes[0].generation_meta?.validator_pass_rate === "number" && (
+                <>
+                  {" · "}
+                  {Math.round(
+                    (quizzes[0].generation_meta.validator_pass_rate as number) * 100,
+                  )}
+                  % passed the validator
+                </>
+              )}
+            </span>
+          </span>
+        </button>
       )}
 
       {deck && deck.due > 0 && (
-        <section className="card">
-          <h2 className="label">Review</h2>
-          <p className="mt-2 text-small text-ink-muted">
-            {deck.due} card{deck.due > 1 ? "s" : ""} due — questions you missed, coming back
-            on a schedule.
-          </p>
-          <button className="btn mt-3 w-full" onClick={onReview}>
-            Review {deck.due} card{deck.due > 1 ? "s" : ""}
-          </button>
-        </section>
+        <button
+          onClick={onReview}
+          className="flex w-full items-center gap-3 rounded-card border border-line
+                     bg-paper-raised p-3 text-left hover:border-line-strong"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block text-small font-medium">
+              Review {deck.due} due card{deck.due > 1 ? "s" : ""}
+            </span>
+            <span className="block text-[11.5px] text-ink-muted">
+              questions you missed, coming back on a schedule
+            </span>
+          </span>
+        </button>
       )}
 
-      <section className="card">
-        <h2 className="label">Material</h2>
-        <button className="btn mt-3 w-full" onClick={() => fileRef.current?.click()}>
-          Add slides or a PDF
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".pptx,.pdf"
-          hidden
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void upload(file);
-            e.target.value = "";
-          }}
-        />
-        {error && <p className="mt-2 text-small text-bad">{error}</p>}
-      </section>
+      <button
+        onClick={() => fileRef.current?.click()}
+        className="flex w-full items-center gap-3 rounded-card border border-dashed
+                   border-line bg-transparent p-3 text-left text-small text-ink-muted
+                   hover:border-line-strong hover:text-ink"
+      >
+        + Add slides or a PDF
+      </button>
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".pptx,.pdf"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void upload(file);
+          e.target.value = "";
+        }}
+      />
+      {error && <p className="text-small text-bad">{error}</p>}
     </aside>
   );
 }

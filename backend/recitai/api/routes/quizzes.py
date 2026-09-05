@@ -20,6 +20,7 @@ from recitai.generation.pipeline import generate_quiz
 from recitai.generation.schemas import Difficulty
 from recitai.llm.ollama import OllamaClient
 from recitai.retrieval.resolver import Scope, resolve_scope
+from recitai.retrieval.sampler import scope_size
 from recitai.retrieval.vector_store import VectorStore
 
 log = structlog.get_logger(__name__)
@@ -30,7 +31,10 @@ class QuizRequest(BaseModel):
     course_id: uuid.UUID
     topic_ids: list[uuid.UUID] = Field(default_factory=list)
     query: str | None = None
-    n: int = Field(default=10, ge=1, le=50)
+    #: Omitted means "cover the scope" — one question per concept in the selected
+    #: material, so the length follows the material rather than a number the student had
+    #: to invent.
+    n: int | None = Field(default=None, ge=1, le=60)
     difficulty: Difficulty = "recall"
     seed: int | None = None
 
@@ -49,6 +53,10 @@ async def _generate(request: QuizRequest, job_id: uuid.UUID) -> None:
             scope = await resolve_scope(
                 request.course_id, request.query, None, client=client, store=store
             )
+        # The job's total is only known once the scope is resolved, when n was not given.
+        if request.n is None:
+            concepts, _ = await scope_size(scope)
+            job.total = concepts
         job.detail = "generating"
         run = await generate_quiz(
             scope, request.n, client, difficulty=request.difficulty, seed=request.seed
@@ -67,10 +75,27 @@ async def _generate(request: QuizRequest, job_id: uuid.UUID) -> None:
         await store.aclose()
 
 
+@router.get("/courses/{course_id}/coverage")
+async def coverage(course_id: uuid.UUID, topic_ids: str = "") -> dict[str, object]:
+    """What a quiz over this selection would cover, before committing to generating it.
+
+    The length of a quiz follows the material, so the student should be able to see it in
+    advance rather than discover it when the job finishes.
+    """
+    ids = [uuid.UUID(t) for t in topic_ids.split(",") if t.strip()]
+    concepts, topics = await scope_size(Scope(course_id=course_id, topic_ids=ids))
+    return {
+        "concepts": concepts,
+        "topics": topics,
+        # Measured p50 is ~17 s per question, and roughly half need a second attempt.
+        "estimated_seconds": concepts * 25,
+    }
+
+
 @router.post("/quizzes", status_code=202)
 async def create_quiz(request: QuizRequest) -> dict[str, object]:
     """Generation takes minutes, so this returns a job to poll (§12)."""
-    job = registry.create(total=request.n)
+    job = registry.create(total=request.n or 0)
     registry.spawn(job, _generate(request, job.id))
     return job.as_dict()
 

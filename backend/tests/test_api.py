@@ -206,8 +206,13 @@ def test_upload_returns_an_id_the_client_can_poll(client: httpx.Client) -> None:
     course = client.post("/api/courses", json={"name": f"upload-probe-{uuid.uuid4()}"}).json()
     response = client.post(
         f"/api/courses/{course['id']}/documents",
-        files={"file": ("probe.pptx", buffer.getvalue(),
-                        "application/vnd.openxmlformats-officedocument.presentationml.presentation")},
+        files={
+            "file": (
+                "probe.pptx",
+                buffer.getvalue(),
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            )
+        },
     )
     assert response.status_code == 202
     document = response.json()

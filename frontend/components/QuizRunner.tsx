@@ -10,10 +10,12 @@ export function QuizRunner({
   quiz,
   attemptId,
   onFinish,
+  onExit,
 }: {
   quiz: PublicQuiz;
   attemptId: string;
   onFinish: () => void;
+  onExit: () => void;
 }) {
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
@@ -52,11 +54,13 @@ export function QuizRunner({
       if (event.key === "Enter") {
         event.preventDefault();
         result ? next() : void submit();
+        return;
       }
+      if (event.key === "Escape") onExit();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [question, result, submit, next]);
+  }, [question, result, submit, next, onExit]);
 
   function optionClass(id: string) {
     if (!result) {
@@ -71,23 +75,41 @@ export function QuizRunner({
 
   return (
     <div>
-      <div className="mb-6 h-[3px] overflow-hidden rounded-sm bg-line">
-        <div
-          className="h-full bg-accent transition-all duration-300"
-          style={{ width: `${(index / quiz.questions.length) * 100}%` }}
-        />
+      {/* A quiz previously had no way out: once started you were held until the last
+          question. Leaving is a normal thing to want, so it is a normal control. */}
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <button
+          onClick={onExit}
+          className="-ml-1 flex items-center gap-1.5 rounded-control px-1.5 py-1 text-small
+                     text-ink-muted hover:bg-paper-raised hover:text-ink"
+        >
+          <svg viewBox="0 0 10 10" aria-hidden="true" className="h-2.5 w-2.5">
+            <path d="M6.5 1.5 L3 5 L6.5 8.5" fill="none" stroke="currentColor" strokeWidth="1.6"
+                  strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Leave quiz
+        </button>
+        <span className="text-small tabular-nums text-ink-muted">
+          {index + 1} of {quiz.questions.length}
+        </span>
       </div>
 
-      <div className="mb-3.5 flex items-center justify-between gap-3">
-        <span className="text-small text-ink-muted">
-          Question {index + 1} of {quiz.questions.length}
-        </span>
-        {question.section_path.length > 0 && (
-          <span className="rounded-full border border-line bg-paper px-2.5 py-0.5 text-small text-ink-muted">
-            {question.section_path.join(" › ")}
-          </span>
-        )}
+      {/* One segment per question, so position is legible at a glance — a single filled
+          bar reads as empty on question one, which is exactly when reassurance matters. */}
+      <div className="mb-5 flex gap-1" aria-hidden="true">
+        {quiz.questions.map((_, i) => (
+          <div
+            key={i}
+            className={`h-[3px] flex-1 rounded-sm ${
+              i < index ? "bg-accent" : i === index ? "bg-accent/45" : "bg-line"
+            }`}
+          />
+        ))}
       </div>
+
+      {question.section_path.length > 0 && (
+        <p className="mb-2.5 text-small text-ink-muted">{question.section_path.join(" › ")}</p>
+      )}
 
       <section className="card">
         <h1 className="text-title font-medium">{question.stem}</h1>
