@@ -9,6 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
+from recitai.api.deps import require_course
 from recitai.db.models import Chunk, Course, Document, Topic
 from recitai.db.session import session_scope
 from recitai.ingestion.pipeline import (
@@ -187,6 +188,7 @@ async def document_status(document_id: uuid.UUID) -> DocumentOut:
 
 @router.get("/courses/{course_id}/documents", response_model=list[DocumentOut])
 async def list_documents(course_id: uuid.UUID) -> list[DocumentOut]:
+    await require_course(course_id)
     async with session_scope() as session:
         documents = (
             await session.execute(
@@ -220,6 +222,7 @@ class TopicOut(BaseModel):
 
 @router.get("/courses/{course_id}/topics", response_model=list[TopicOut])
 async def list_topics(course_id: uuid.UUID) -> list[TopicOut]:
+    await require_course(course_id)
     async with session_scope() as session:
         topics = (
             await session.execute(

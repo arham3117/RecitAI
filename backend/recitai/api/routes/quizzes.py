@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
+from recitai.api.deps import require_course
 from recitai.api.jobs import registry
 from recitai.api.schemas import PublicQuiz, to_public_question
 from recitai.db.models import Chunk, Question, Quiz
@@ -82,6 +83,7 @@ async def coverage(course_id: uuid.UUID, topic_ids: str = "") -> dict[str, objec
     The length of a quiz follows the material, so the student should be able to see it in
     advance rather than discover it when the job finishes.
     """
+    await require_course(course_id)
     ids = [uuid.UUID(t) for t in topic_ids.split(",") if t.strip()]
     concepts, topics = await scope_size(Scope(course_id=course_id, topic_ids=ids))
     return {
@@ -160,6 +162,7 @@ async def get_quiz(quiz_id: uuid.UUID) -> PublicQuiz:
 
 @router.get("/courses/{course_id}/quizzes")
 async def list_quizzes(course_id: uuid.UUID) -> list[dict[str, object]]:
+    await require_course(course_id)
     async with session_scope() as session:
         quizzes = (
             await session.execute(

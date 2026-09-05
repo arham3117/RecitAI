@@ -77,6 +77,7 @@ make ingest F=materials C="Course name"
 make api              # backend on :8000 (also serves a single-page client at /)
 make web              # Next.js frontend on :3000
 make eval             # the §15 metrics report
+make reconcile        # assert qdrant and postgres agree (FIX=1 to clean orphans)
 make compare LOGS="a.txt b.txt"   # A/B two generation runs
 make lint && make test
 ```

@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sse_starlette.sse import EventSourceResponse
 
+from recitai.api.deps import require_course
 from recitai.config import settings
 from recitai.db.models import (
     Answer,
@@ -414,6 +415,7 @@ async def chat(course_id: uuid.UUID, payload: ChatIn) -> EventSourceResponse:
     I1 holds too: the passages are sent to the client *before* the answer starts, with
     their slides, so a claim can be traced the moment it appears.
     """
+    await require_course(course_id)
     client, store = OllamaClient(), VectorStore()
     try:
         hits = await search(
@@ -549,6 +551,7 @@ async def explain(question_id: uuid.UUID, payload: FollowUpIn) -> EventSourceRes
 
 @router.get("/courses/{course_id}/mastery")
 async def course_mastery(course_id: uuid.UUID) -> list[dict[str, object]]:
+    await require_course(course_id)
     async with session_scope() as session:
         rows = (
             await session.execute(select(TopicMastery).where(TopicMastery.course_id == course_id))

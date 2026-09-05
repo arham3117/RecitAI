@@ -79,6 +79,11 @@ other course's files.
 The original file is kept, not discarded after reading, so the explanation panel can show
 you the real slide.
 
+A course can be removed again from the switcher. Deleting one clears its vectors and its
+uploaded files before its rows, so nothing outlives it — an embedding that survives its
+passage would still be retrievable, which is the closed-world guarantee broken silently.
+`make reconcile` checks that Qdrant and Postgres agree, in both directions.
+
 ## Asking questions about the material
 
 Alongside quizzes there is a chat box: ask anything about your own slides and get an
@@ -198,6 +203,7 @@ backend/recitai/
   learning/     FSRS scheduling · mastery · missed-question promotion
   api/          FastAPI routes and the answer-leak boundary
 eval/           the metrics harness behind every number above
+scripts/        smoke test · vector/row reconciliation
 plan/           the build spec, and the decision and issue logs
 docs/adr/       why the architecture is what it is
 ```

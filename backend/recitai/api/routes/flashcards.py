@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
+from recitai.api.deps import require_course
 from recitai.api.jobs import registry
 from recitai.db.models import Flashcard
 from recitai.db.session import session_scope
@@ -42,11 +43,13 @@ def _out(card: Flashcard) -> FlashcardOut:
 
 @router.get("/courses/{course_id}/flashcards/due", response_model=list[FlashcardOut])
 async def get_due(course_id: uuid.UUID, limit: int = 50) -> list[FlashcardOut]:
+    await require_course(course_id)
     return [_out(c) for c in await due_flashcards(course_id, limit=limit)]
 
 
 @router.get("/courses/{course_id}/flashcards", response_model=list[FlashcardOut])
 async def list_flashcards(course_id: uuid.UUID) -> list[FlashcardOut]:
+    await require_course(course_id)
     async with session_scope() as session:
         cards = (
             await session.execute(
@@ -61,6 +64,7 @@ async def list_flashcards(course_id: uuid.UUID) -> list[FlashcardOut]:
 @router.get("/courses/{course_id}/flashcards/stats")
 async def stats(course_id: uuid.UUID) -> dict[str, int]:
     """§13 task 5: due today, new, learning, mature."""
+    await require_course(course_id)
     return await deck_stats(course_id)
 
 
