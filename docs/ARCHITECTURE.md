@@ -58,7 +58,7 @@ Search is still used — but only to **find** the chapter, never to decide what 
 tested on. Once the chapter is identified, a separate component walks through all of it.
 
 We measured this: **100% of topics are covered across five consecutive quizzes.** Asking
-about "Distribution Design" draws questions from 59 slides, not from the 5 that best match
+about "Distribution Design" draws questions from all 64 of its slides, not from the 5 that best match
 the phrase.
 
 ---

@@ -15,8 +15,8 @@ flashcards drawn **only from it**, with a slide citation on every answer.
 
 Everything runs on your machine. No course material leaves it.
 
-> *"Quiz me on Chapter 2" should ask about Chapter 2 — all of it, not the four pages that
-> happen to say "Chapter 2" the most.*
+> *"Quiz me on fragmentation" should ask about fragmentation — all of it, not the handful
+> of slides that happen to say the word most often.*
 
 ---
 
@@ -39,15 +39,35 @@ Everything runs on your machine. No course material leaves it.
 
 ## Why it is built this way
 
-A student selects "Chapter 2" and asks for a 15-question quiz.
+A student picks the topic **Distribution Design** and asks to be quizzed on it. In this
+course that topic is 11 passages across 64 slides: horizontal and vertical fragmentation,
+the PHORIZONTAL algorithm, correctness of derived fragmentation, the allocation model.
 
-The obvious implementation embeds the string "Chapter 2", retrieves the top 5 chunks, and
-generates from those. It fails in a way that does not look like failure: the chunks that
-win a similarity contest against a chapter name are the ones that *say* that name most —
-the introduction. The student is quizzed on four pages of thirty, gets five definition
-questions, and **nothing in the output reveals that 26 pages were skipped.**
+The obvious implementation embeds the phrase "Distribution Design", takes the top 5
+chunks, and generates from those. Those are not hypothetical numbers — this is what
+`nomic-embed-text` actually returns for that query over the 35 passages of this course:
 
-So RecitAI has two retrieval paths, and the distinction is the architecture:
+```
+rank  score   passage
+  1   0.676   Distribution Design › Design Problem
+  2   0.522   Introduction › Transparency            ← different topic
+  3   0.520   Background › Types of Networks         ← different topic
+  4   0.506   Introduction › File Systems            ← different topic
+  5   0.494   Distribution Design › VF – Algorithm
+```
+
+**Only two of the five are in the requested topic.** The winner is the section that *says*
+the words "Distribution Design" most — the opening slides that pose the problem, before any
+of it is taught. Nine of the topic's eleven passages are never seen: the whole of
+horizontal fragmentation, the PHORIZONTAL algorithm, derived-fragmentation correctness and
+the allocation model never reach the model at all. Meanwhile three of the five passages
+that *do* come back are from topics the student did not select.
+
+And it fails in a way that does not look like failure. The questions are well-formed. They
+cite real slides. Nothing in the output says that most of the topic was never considered.
+
+That single measurement is the reason for the architecture: RecitAI has two retrieval
+paths, and it never uses the wrong one for the job.
 
 | | Path A — Coverage | Path B — Similarity |
 |---|---|---|
@@ -59,8 +79,9 @@ Scoping is a **filter, not a search**. When a student types free text, search *l
 material and the resolver then expands to the whole topic — generation never runs on the
 retrieved chunks alone.
 
-Measured: **100% topic coverage across 5 consecutive quizzes.** Asking about "Distribution
-Design" draws from 59 slides, not the 5 that best match the phrase.
+Measured: **100% topic coverage across 5 consecutive quizzes.** Asking about Distribution
+Design draws from all 64 of its slides, not the two passages that win a similarity contest
+against its name.
 
 ## How it fits together
 
