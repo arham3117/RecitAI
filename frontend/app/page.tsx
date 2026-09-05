@@ -201,6 +201,14 @@ export default function Page() {
               setSelected(new Set());
               void refresh(c.id);
             }}
+            onDeleted={(id) => {
+              // Deleting the course you are looking at leaves nothing selected, so fall
+              // back to whatever remains rather than rendering an empty shell.
+              const next = courses.find((c) => c.id !== id) ?? null;
+              setSelected(new Set());
+              setView({ name: "library" });
+              void refresh(course?.id === id ? next?.id : course?.id);
+            }}
           />
         }
         course={course}

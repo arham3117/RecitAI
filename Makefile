@@ -57,5 +57,8 @@ migrate:  ## apply database migrations
 eval:  ## metrics report (spec §15)
 	cd $(BACKEND) && uv run python ../eval/run_eval.py
 
+reconcile:  ## check qdrant/postgres agree (add FIX=1 to clean up orphans)
+	cd $(BACKEND) && uv run python ../scripts/reconcile_vectors.py $(if $(FIX),--fix,)
+
 compare:  ## compare generation runs: make compare LOGS="a.txt b.txt"
 	cd $(BACKEND) && uv run python ../eval/compare_runs.py $(LOGS)

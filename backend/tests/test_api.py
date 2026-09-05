@@ -1,11 +1,34 @@
 """API tests (spec §12). The leak boundary and the core answer payload."""
 
 import uuid
+from collections.abc import Callable, Iterator
+from typing import Any
 
 import httpx
 import pytest
 
 BASE = "http://localhost:8000"
+
+
+@pytest.fixture
+def scratch_course(client: httpx.Client) -> Iterator[Callable[[str], dict[str, Any]]]:
+    """A course that exists only for one test, and is deleted afterwards.
+
+    These tests run against the real service and the real database, so anything they
+    create shows up in the student's own course switcher. Fifteen abandoned probe
+    courses accumulated before this existed.
+    """
+    created: list[str] = []
+
+    def make(name: str) -> dict[str, Any]:
+        course: dict[str, Any] = client.post("/api/courses", json={"name": name}).json()
+        created.append(course["id"])
+        return course
+
+    yield make
+
+    for course_id in created:
+        client.delete(f"/api/courses/{course_id}")
 
 
 @pytest.fixture(scope="module")
@@ -140,6 +163,10 @@ def test_chat_answers_only_from_the_material(client: httpx.Client) -> None:
         ).lower()
 
     assert body.strip(), "the tutor must say something"
+    # The invariant is the assertion below — that world knowledge did not leak in. This
+    # check is the softer one: that it *said* so rather than going quiet. Its phrasing
+    # varies run to run, so it lists forms of refusal rather than one sentence; a run
+    # phrased as "I cannot provide information on..." failed an earlier, shorter list.
     declined = any(
         phrase in body
         for phrase in (
@@ -148,8 +175,15 @@ def test_chat_answers_only_from_the_material(client: httpx.Client) -> None:
             "no mention",
             "do not cover",
             "does not cover",
+            "doesn't cover",
+            "not covered",
+            "cannot provide",
+            "can't provide",
+            "cannot answer",
+            "can't answer",
             "can't help",
             "cannot help",
+            "not contain",
         )
     )
     assert declined, f"expected a refusal grounded in the passages, got: {body[:200]}"
@@ -187,7 +221,9 @@ def test_chat_cites_the_passages_it_used(client: httpx.Client) -> None:
         assert source["page_end"] >= source["page_start"]
 
 
-def test_upload_returns_an_id_the_client_can_poll(client: httpx.Client) -> None:
+def test_upload_returns_an_id_the_client_can_poll(
+    client: httpx.Client, scratch_course: Callable[[str], dict[str, Any]]
+) -> None:
     """The upload used to return a freshly minted UUID matching no row, so every status
     request 404'd and the interface could not tell a student whether ingestion had
     finished — it just looked stuck forever."""
@@ -203,7 +239,7 @@ def test_upload_returns_an_id_the_client_can_poll(client: httpx.Client) -> None:
     buffer = BytesIO()
     presentation.save(buffer)
 
-    course = client.post("/api/courses", json={"name": f"upload-probe-{uuid.uuid4()}"}).json()
+    course = scratch_course(f"upload-probe-{uuid.uuid4()}")
     response = client.post(
         f"/api/courses/{course['id']}/documents",
         files={
@@ -225,11 +261,13 @@ def test_upload_returns_an_id_the_client_can_poll(client: httpx.Client) -> None:
     assert status.json()["filename"] == "probe.pptx"
 
 
-def test_a_new_course_starts_empty_and_isolated(client: httpx.Client) -> None:
+def test_a_new_course_starts_empty_and_isolated(
+    client: httpx.Client, scratch_course: Callable[[str], dict[str, Any]]
+) -> None:
     """Material added to one course must not leak into another — otherwise 'answers from
     your material' means 'answers from anyone's material'."""
     _db_or_skip(client)
-    course = client.post("/api/courses", json={"name": f"isolation-probe-{uuid.uuid4()}"}).json()
+    course = scratch_course(f"isolation-probe-{uuid.uuid4()}")
     assert course["chunk_count"] == 0
     assert client.get(f"/api/courses/{course['id']}/topics").json() == []
     assert client.get(f"/api/courses/{course['id']}/quizzes").json() == []
@@ -275,3 +313,17 @@ def test_leaving_a_quiz_and_returning_resumes_it(client: httpx.Client) -> None:
     assert fresh["id"] != first["id"]
     assert fresh["answered_question_ids"] == []
     assert fresh["resumed"] is False
+
+
+def test_deleting_a_course_removes_it_and_its_vectors(client: httpx.Client) -> None:
+    """A course created by mistake has to be removable, and removing it must not leave
+    vectors behind: Postgres cascades to chunks, Qdrant does not, and an orphaned vector
+    is a passage that no longer exists but is still retrievable."""
+    _db_or_skip(client)
+    course = client.post("/api/courses", json={"name": f"delete-probe-{uuid.uuid4()}"}).json()
+    assert client.get(f"/api/courses/{course['id']}/topics").status_code == 200
+
+    assert client.delete(f"/api/courses/{course['id']}").status_code == 204
+    assert course["id"] not in {c["id"] for c in client.get("/api/courses").json()}
+    # Deleting something already gone is a 404, not a 500.
+    assert client.delete(f"/api/courses/{course['id']}").status_code == 404

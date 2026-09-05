@@ -33,6 +33,14 @@ export const api = {
   courses: () => req<Course[]>("/courses"),
   createCourse: (name: string) =>
     req<Course>("/courses", { method: "POST", body: JSON.stringify({ name }) }),
+  // 204 carries no body, so this cannot go through `req`, which always parses JSON.
+  deleteCourse: async (courseId: string): Promise<void> => {
+    const res = await fetch(`/api/courses/${courseId}`, { method: "DELETE" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail ?? `${res.status} ${res.statusText}`);
+    }
+  },
   documentStatus: (documentId: string) => req<DocumentSummary>(`/documents/${documentId}/status`),
   topics: (courseId: string) => req<Topic[]>(`/courses/${courseId}/topics`),
   documents: (courseId: string) => req<DocumentSummary[]>(`/courses/${courseId}/documents`),

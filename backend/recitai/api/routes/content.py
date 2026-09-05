@@ -47,6 +47,40 @@ async def create_course(payload: CourseIn) -> CourseOut:
         return CourseOut(id=course.id, name=course.name, code=course.code)
 
 
+@router.delete("/courses/{course_id}", status_code=204)
+async def delete_course(course_id: uuid.UUID) -> None:
+    """Delete a course and everything derived from it.
+
+    Postgres cascades to documents, chunks, topics, quizzes, attempts and flashcards; the
+    vectors and the uploaded files are outside that guarantee and are cleared here. Doing
+    the vector delete first means a failure leaves rows without vectors — recoverable by
+    re-ingesting — rather than vectors without rows, which is a silent correctness bug:
+    passages that no longer exist would still be retrievable.
+    """
+    async with session_scope() as session:
+        course = await session.get(Course, course_id)
+        if course is None:
+            raise HTTPException(404, f"no course {course_id}")
+        name = course.name
+
+    store = VectorStore()
+    try:
+        await store.delete_by_course(course_id)
+    finally:
+        await store.aclose()
+
+    uploads = uploads_dir(course_id, create=False)
+    if uploads.exists():
+        shutil.rmtree(uploads, ignore_errors=True)
+
+    async with session_scope() as session:
+        course = await session.get(Course, course_id)
+        if course is not None:
+            await session.delete(course)
+
+    log.info("course_deleted", course_id=str(course_id), name=name)
+
+
 @router.get("/courses", response_model=list[CourseOut])
 async def list_courses() -> list[CourseOut]:
     async with session_scope() as session:

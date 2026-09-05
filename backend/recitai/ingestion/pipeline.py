@@ -89,7 +89,7 @@ async def _discard_derived_questions(document_id: uuid.UUID) -> int:
         return len(doomed)
 
 
-def uploads_dir(course_id: uuid.UUID) -> Path:
+def uploads_dir(course_id: uuid.UUID, create: bool = True) -> Path:
     """Where an uploaded file is kept.
 
     Ingestion used to read from a temp file and delete it, which cost two things: the
@@ -103,7 +103,9 @@ def uploads_dir(course_id: uuid.UUID) -> Path:
     if not root.is_absolute():
         root = Path(__file__).resolve().parents[3] / root
     path = root / "uploads" / str(course_id)
-    path.mkdir(parents=True, exist_ok=True)
+    # Deleting a course needs the path without the side effect of creating it.
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
     return path
 
 
@@ -239,6 +241,22 @@ async def ingest_file(
         written = await embed_chunks(
             client, store, chunks, chunk_ids, document_id=document_id, course_id=course_id
         )
+
+        # A course can be deleted while one of its uploads is still being ingested in the
+        # background. Postgres cascades the chunk rows away, but the vectors written a
+        # moment ago outlive them — leaving passages that no longer exist yet are still
+        # retrievable, which is the I2 failure `reconcile_vectors.py` exists to catch.
+        async with session_scope() as session:
+            doc = await session.get(Document, document_id)
+        if doc is None:
+            await store.delete_by_document(document_id)
+            log.info("ingest_discarded", filename=path.name, reason="course deleted mid-ingest")
+            return IngestResult(
+                document_id=document_id,
+                filename=path.name,
+                status="discarded",
+                skipped_reason="the course was deleted while this file was being ingested",
+            )
 
         async with session_scope() as session:
             doc = await session.get(Document, document_id)

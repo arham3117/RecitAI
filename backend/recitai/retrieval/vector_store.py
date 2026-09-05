@@ -66,6 +66,20 @@ class VectorStore:
             ),
         )
 
+    async def delete_by_course(self, course_id: uuid.UUID) -> None:
+        """Remove a whole course's vectors.
+
+        Postgres cascades a course delete down to its chunks, but Qdrant knows nothing
+        about that: without this the vectors survive their rows, and a passage that no
+        longer exists stays retrievable by chat and explanations.
+        """
+        await self._client.delete(
+            self.collection,
+            points_selector=Filter(
+                must=[FieldCondition(key="course_id", match=MatchValue(value=str(course_id)))]
+            ),
+        )
+
     async def set_topic_for_chunks(self, topic_id: uuid.UUID, chunk_ids: list[uuid.UUID]) -> None:
         """Write `topic_id` into the payload of already-indexed chunks.
 
