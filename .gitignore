@@ -10,6 +10,12 @@ materials/
 !backend/tests/fixtures/
 !backend/tests/fixtures/**
 
+# ---- Agent instructions (kept local) ----
+# CLAUDE.md is tooling configuration, not part of the project. Its substance — the
+# deliberate departures from the spec, and the findings not worth re-litigating — lives
+# in CONTRIBUTING.md, which is where a contributor would look for it.
+CLAUDE.md
+
 # ---- Planning documents (kept local) ----
 # The build spec and the decision, issue and progress logs stay off the published
 # repository. Code comments still cite their D-0NN / I-0NN identifiers, and
